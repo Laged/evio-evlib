@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -23,6 +26,43 @@ def decode_legacy_events(event_words: np.ndarray) -> tuple[np.ndarray, np.ndarra
     raw_polarity = ((event_words >> 28) & 0xF).astype(np.uint8)
     polarity = (raw_polarity > 0).astype(np.int8)
     return x, y, polarity
+
+
+@dataclass(frozen=True)
+class MockRecording:
+    """Mock Recording for testing."""
+    width: int
+    height: int
+    timestamps: np.ndarray
+    event_words: np.ndarray
+    order: np.ndarray
+
+
+def compute_legacy_stats(recording) -> dict[str, int]:
+    """Extract statistics from legacy Recording object.
+
+    Args:
+        recording: Recording object from evio.core.recording.open_dat()
+
+    Returns:
+        Dict with keys:
+            - event_count: total events
+            - t_min, t_max: timestamp range (microseconds)
+            - x_min, x_max, y_min, y_max: spatial bounds
+            - p_count_0, p_count_1: polarity distribution
+    """
+    x, y, polarity = decode_legacy_events(recording.event_words)
+    return {
+        'event_count': len(recording.timestamps),
+        't_min': int(recording.timestamps.min()),
+        't_max': int(recording.timestamps.max()),
+        'x_min': int(x.min()),
+        'x_max': int(x.max()),
+        'y_min': int(y.min()),
+        'y_max': int(y.max()),
+        'p_count_0': int((polarity == 0).sum()),
+        'p_count_1': int((polarity == 1).sum()),
+    }
 
 
 def test_decode_legacy_events():
@@ -53,3 +93,40 @@ def test_decode_legacy_events_polarity_zero():
     assert x[0] == 50
     assert y[0] == 150
     assert polarity[0] == 0
+
+
+def test_compute_legacy_stats():
+    """Test statistics extraction from legacy Recording."""
+    # Create mock recording with 3 events
+    timestamps = np.array([1000, 2000, 3000], dtype=np.int64)
+
+    # Event 1: x=100, y=200, p=1
+    # Event 2: x=150, y=250, p=0
+    # Event 3: x=200, y=300, p=1
+    event_words = np.array([
+        (1 << 28) | (200 << 14) | 100,
+        (0 << 28) | (250 << 14) | 150,
+        (1 << 28) | (300 << 14) | 200,
+    ], dtype=np.uint32)
+
+    order = np.array([0, 1, 2], dtype=np.int32)
+
+    recording = MockRecording(
+        width=1280,
+        height=720,
+        timestamps=timestamps,
+        event_words=event_words,
+        order=order,
+    )
+
+    stats = compute_legacy_stats(recording)
+
+    assert stats['event_count'] == 3
+    assert stats['t_min'] == 1000
+    assert stats['t_max'] == 3000
+    assert stats['x_min'] == 100
+    assert stats['x_max'] == 200
+    assert stats['y_min'] == 200
+    assert stats['y_max'] == 300
+    assert stats['p_count_0'] == 1
+    assert stats['p_count_1'] == 2
