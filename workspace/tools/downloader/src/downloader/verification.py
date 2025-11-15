@@ -88,20 +88,28 @@ def check_inventory() -> Dict[str, Dict[str, int]]:
     else:
         inventory['fan'] = {'dat': 0, 'raw': 0}
 
-    # Drone datasets
-    drone_path = Path('evio/data/drone')
-    if drone_path.exists():
-        dat_files = list(drone_path.glob('*.dat'))
-        raw_files = list(drone_path.glob('*.raw'))
-        inventory['drone'] = {
-            'dat': len(dat_files),
-            'raw': len(raw_files)
-        }
-    else:
-        inventory['drone'] = {'dat': 0, 'raw': 0}
+    # Drone datasets (idle + moving combined)
+    drone_idle_path = Path('evio/data/drone_idle')
+    drone_moving_path = Path('evio/data/drone_moving')
+
+    drone_dat_files = []
+    drone_raw_files = []
+
+    if drone_idle_path.exists():
+        drone_dat_files.extend(list(drone_idle_path.glob('*.dat')))
+        drone_raw_files.extend(list(drone_idle_path.glob('*.raw')))
+
+    if drone_moving_path.exists():
+        drone_dat_files.extend(list(drone_moving_path.glob('*.dat')))
+        drone_raw_files.extend(list(drone_moving_path.glob('*.raw')))
+
+    inventory['drone'] = {
+        'dat': len(drone_dat_files),
+        'raw': len(drone_raw_files)
+    }
 
     # Fred-0 datasets
-    fred_path = Path('evio/data/fred-0/events')
+    fred_path = Path('evio/data/fred-0/Event')
     if fred_path.exists():
         dat_files = list(fred_path.glob('*.dat'))
         raw_files = list(fred_path.glob('*.raw'))
