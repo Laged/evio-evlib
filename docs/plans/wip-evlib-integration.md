@@ -88,7 +88,25 @@ run-evlib-tests
 - Legacy loader: `.raw` files (original EVT3 format)
 - evlib loader: `_evt3.dat` files (converted with preserved headers)
 
-**Test Results:** [To be filled after first successful run]
+**Test Results:** ✅ All comparison tests PASSED (2025-11-15)
+
+Both datasets successfully compared between .raw and _evt3.dat formats using evlib:
+
+- **fan_const_rpm**: ✅ PASS
+  - Events: 30,380,201
+  - Time range: 1536 → 682,000,000 μs
+  - X range: 0 → 2039
+  - Y range: 0 → 1792
+  - Polarity: -1=30,163,360, 1=216,841
+
+- **drone_idle**: ✅ PASS
+  - Events: 140,704,280
+  - Time range: 1591 → 584,000,000 μs
+  - X range: 0 → 1934
+  - Y range: 0 → 1792
+  - Polarity: -1=140,533,646, 1=170,634
+
+**Conclusion:** EVT3 conversion workflow successfully preserves data integrity. All statistical comparisons passed with exact matches for event counts and ranges.
 
 **Next Steps:** See section 5.4 for roll-out plan.
 

@@ -114,7 +114,7 @@ def compute_evlib_stats(dat_path: Path) -> dict[str, int]:
         pl.col("x").max().alias("x_max"),
         pl.col("y").min().alias("y_min"),
         pl.col("y").max().alias("y_max"),
-        (pl.col("polarity") == 0).sum().alias("p_count_0"),
+        (pl.col("polarity") == -1).sum().alias("p_count_0"),
         (pl.col("polarity") == 1).sum().alias("p_count_1"),
     ]).collect().to_dicts()[0]
 
