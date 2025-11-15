@@ -178,6 +178,66 @@ Expected: `evlib available`
 
 ---
 
+## Running Detector Demos
+
+### Prerequisites
+
+```bash
+nix develop
+unzip-datasets  # Extract datasets (one-time)
+
+# Convert legacy .dat to HDF5 for evlib demos
+convert-legacy-dat-to-hdf5 evio/data/fan/fan_const_rpm.dat
+convert-legacy-dat-to-hdf5 evio/data/drone_idle/drone_idle.dat
+```
+
+### Fan Detector Demo
+
+**Legacy loader:**
+```bash
+run-fan-detector
+```
+
+Shows:
+- Pass 1: Ellipse fitting on rotating fan (30ms windows)
+- Pass 2: DBSCAN blade tracking (0.5ms windows)
+- Matplotlib plots: Angle tracking and RPM estimation
+
+**Controls:** Press 'q' or ESC to quit
+
+### Drone Detector Demo
+
+**Legacy loader:**
+```bash
+run-drone-detector
+```
+
+Shows:
+- Dual propeller detection (up to 2 ellipses)
+- Per-propeller RPM estimation
+- "WARNING: DRONE DETECTED" overlay
+
+**Controls:** Press 'q' or ESC to quit
+
+### Expected Outputs
+
+**Fan Detector:**
+- RPM: ~250-400 (depending on dataset)
+- Single ellipse tracking fan rotation
+
+**Drone Detector:**
+- RPM: ~3000-10000 per propeller
+- 1-2 ellipses (horizontal orientation)
+- Warning overlay
+
+---
+
+## Next Steps
+
+See `docs/demo-workflow.md` for evlib migration path.
+
+---
+
 ## Troubleshooting
 
 ### "uv: command not found"
