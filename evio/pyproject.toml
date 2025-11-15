@@ -78,3 +78,8 @@ select = [
 ignore = [
 	"COM812",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]

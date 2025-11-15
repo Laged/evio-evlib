@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Convert EVT3 .raw files to .dat format by preserving the header and binary payload.
+Convert EVT3 .raw files to .dat format while patching metadata to match actual stats.
 
-This script performs a simple container format conversion without re-encoding events.
-The .raw files already contain valid EVT3 headers (% evt 3.0, % format EVT3, etc.)
-and binary event data that evlib can parse. We simply copy this to a .dat file.
+This script now inspects the raw events via evlib before copying bytes so we can
+log true resolution/duration/polarity counts and optionally fix the header fields
+(`height`, `width`, `geometry`) when they are incorrect.
 
 Usage:
     python scripts/convert_evt3_raw_to_dat.py <input.raw> [output.dat]
@@ -18,7 +18,76 @@ from __future__ import annotations
 
 import argparse
 import sys
+import re
 from pathlib import Path
+
+import evlib
+import polars as pl
+
+
+def collect_evt3_stats(raw_path: Path) -> dict[str, int]:
+    """Use evlib to gather x/y/t/p stats without loading the full dataset eagerly."""
+    lazy = evlib.load_events(str(raw_path))
+    schema = lazy.collect_schema()
+    if isinstance(schema["t"], pl.Duration):
+        t_expr = pl.col("t").dt.total_microseconds()
+    else:
+        t_expr = pl.col("t")
+
+    stats = (
+        lazy.select(
+            pl.len().alias("events"),
+            pl.col("x").min().alias("x_min"),
+            pl.col("x").max().alias("x_max"),
+            pl.col("y").min().alias("y_min"),
+            pl.col("y").max().alias("y_max"),
+            t_expr.min().alias("t_min"),
+            t_expr.max().alias("t_max"),
+            (pl.col("polarity") == 1).sum().alias("pol_on"),
+            (pl.col("polarity") == -1).sum().alias("pol_off"),
+        )
+        .collect()
+        .to_dicts()[0]
+    )
+    return {k: int(v) for k, v in stats.items()}
+
+
+def patch_header_dimensions(header: bytes, width: int, height: int) -> bytes:
+    """Rewrite width/height metadata in the ASCII header if present."""
+    text = header.decode("ascii", errors="ignore")
+    patched = text
+
+    def _replace(pattern: str, replacement, src: str) -> tuple[str, bool]:
+        new, count = re.subn(pattern, replacement, src, count=1, flags=re.IGNORECASE)
+        return new, count > 0
+
+    patched, _ = _replace(
+        r"(format\s+EVT3;)([^\\n]*)",
+        lambda m: f"{m.group(1)}height={height};width={width}",
+        patched,
+    )
+    patched, _ = _replace(
+        r"(height=)\d+",
+        f"\\1{height}",
+        patched,
+    )
+    patched, _ = _replace(
+        r"(width=)\d+",
+        f"\\1{width}",
+        patched,
+    )
+    if "geometry" in patched:
+        patched, _ = _replace(
+            r"(geometry\s+)\d+x\d+",
+            f"\\1{width}x{height}",
+            patched,
+        )
+    else:
+        patched = patched.replace("% end", f"% geometry {width}x{height}\n% end", 1)
+
+    if patched != text:
+        return patched.encode("ascii")
+    return header
 
 
 def validate_evt3_header(raw_path: Path) -> tuple[int, bytes]:
@@ -68,7 +137,8 @@ def validate_evt3_header(raw_path: Path) -> tuple[int, bytes]:
 def convert_raw_to_dat(
     input_path: Path,
     output_path: Path,
-    chunk_size: int = 1024 * 1024  # 1MB chunks
+    chunk_size: int = 1024 * 1024,  # 1MB chunks
+    patch_header: bool = True,
 ) -> dict[str, int]:
     """
     Convert .raw to .dat by copying header and binary payload.
@@ -87,6 +157,11 @@ def convert_raw_to_dat(
 
     # Validate EVT3 header and get its size
     header_size, header_bytes = validate_evt3_header(input_path)
+    stats = collect_evt3_stats(input_path)
+    width = stats["x_max"] + 1
+    height = stats["y_max"] + 1
+    if patch_header:
+        header_bytes = patch_header_dimensions(header_bytes, width, height)
 
     # Get total file size
     total_size = input_path.stat().st_size
@@ -114,6 +189,9 @@ def convert_raw_to_dat(
         'event_bytes': event_bytes,
         'total_bytes': total_size,
         'output_path': str(output_path),
+        'stats': stats,
+        'width': width,
+        'height': height,
     }
 
 
@@ -149,6 +227,11 @@ See docs/evlib-integration.md for details.
         action='store_true',
         help='Overwrite output file if it exists'
     )
+    parser.add_argument(
+        '--no-patch-header',
+        action='store_true',
+        help='Skip automatic width/height header patching',
+    )
 
     return parser.parse_args()
 
@@ -177,7 +260,11 @@ def main() -> int:
     print()
 
     try:
-        stats = convert_raw_to_dat(args.input, output_path)
+        stats = convert_raw_to_dat(
+            args.input,
+            output_path,
+            patch_header=not args.no_patch_header,
+        )
     except (FileNotFoundError, ValueError) as e:
         print(f"❌ Conversion failed: {e}")
         return 1
@@ -189,6 +276,23 @@ def main() -> int:
 
     # Success
     print("✅ Conversion successful!")
+    print()
+    print("Event stats (via evlib):")
+    print(
+        f"Events: {stats['stats']['events']:,} | "
+        f"X range: {stats['stats']['x_min']}–{stats['stats']['x_max']} | "
+        f"Y range: {stats['stats']['y_min']}–{stats['stats']['y_max']}"
+    )
+    duration_ms = (stats['stats']['t_max'] - stats['stats']['t_min']) / 1000
+    print(
+        f"Duration: {duration_ms / 1000:.2f}s "
+        f"(t_min={stats['stats']['t_min']}, t_max={stats['stats']['t_max']})"
+    )
+    print(
+        f"Polarity: ON={stats['stats']['pol_on']:,} "
+        f"OFF={stats['stats']['pol_off']:,}"
+    )
+    print(f"Metadata resolution set to: {stats['width']}x{stats['height']}")
     print()
     print(f"Header size : {stats['header_bytes']:,} bytes")
     print(f"Event data  : {stats['event_bytes']:,} bytes")

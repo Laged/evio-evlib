@@ -126,6 +126,13 @@ unzip-datasets   # or download-datasets
 # Convert all .raw files to EVT3 .dat
 convert-all-datasets
 
+# Export legacy .dat → evlib HDF5 for demos/parity
+convert-legacy-dat-to-hdf5 evio/data/fan/fan_const_rpm.dat
+
+# Play demos
+run-demo-fan          # legacy loader
+run-demo-fan-ev3      # evlib loader on fan_const_rpm_legacy.h5
+
 # Verify a converted file
 uv run --package evio-verifier verify-dat evio/data/fan/fan_const_rpm_evt3.dat
 

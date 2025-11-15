@@ -1,0 +1,19 @@
+[project]
+name = "evlib-examples"
+version = "0.1.0"
+description = "Standalone evlib raw-file exploration CLI"
+requires-python = ">=3.11"
+dependencies = [
+    "evlib>=0.8.0",
+    "polars>=0.20.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.8.0",
+]
+
+[project.scripts]
+evlib-raw-demo = "evlib_examples.raw_demo:main"
+evlib-raw-player = "evlib_examples.raw_player:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
