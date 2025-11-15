@@ -52,6 +52,19 @@ cd evio-evlib
 nix develop
 ```
 
+**First time setup:**
+```bash
+# After entering nix shell for the first time:
+uv sync  # Install all workspace packages
+```
+
+**After git pull with lockfile changes:**
+```bash
+git pull
+nix develop
+uv sync  # Update packages if uv.lock changed
+```
+
 ### Run Commands
 
 All commands run from repo root using `uv run --package <member>`:
