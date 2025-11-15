@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "source": "https://drive.google.com/drive/folders/18ORzE9_aHABYqOHzVdL0GANk_eIMaSuE",
+  "generated": "2025-11-15",
+  "datasets": [
+    {
+      "id": "18gpWinwgyteY3kQ-UVjd8JlIFa0Gi9m8",
+      "name": "drone_idle.dat",
+      "path": "evio/data/drone/drone_idle.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1SD80o6p2W-C3-MdYZRlclul9PNbJixhM",
+      "name": "drone_idle.raw",
+      "path": "evio/data/drone/drone_idle.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1KcETCanKDVS6PiKfhTVJWScUD7_lLvCU",
+      "name": "drone_moving.dat",
+      "path": "evio/data/drone/drone_moving.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1cMzwYtflu74dkgoyk-YzgaNi9vch095r",
+      "name": "drone_moving.raw",
+      "path": "evio/data/drone/drone_moving.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1vB1cOZlO4MQ7c503-UU109mMbClsf5Lq",
+      "name": "fan_const_rpm.dat",
+      "path": "evio/data/fan/fan_const_rpm.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "18eI0LbcE-0DcZhZcd4bx-yTP-gHsYY91",
+      "name": "fan_const_rpm.raw",
+      "path": "evio/data/fan/fan_const_rpm.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1DznhFAwQbEBfSM-2Aq1sjvgVW5GEfViN",
+      "name": "fan_varying_rpm_turning.dat",
+      "path": "evio/data/fan/fan_varying_rpm_turning.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1CcvPDktTwq7ImbSqDv3I4RlkF7PV5L-f",
+      "name": "fan_varying_rpm_turning.raw",
+      "path": "evio/data/fan/fan_varying_rpm_turning.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1oJ0tTpGtcrkUO3CThFuvBbPlJiZpSwin",
+      "name": "fan_varying_rpm.dat",
+      "path": "evio/data/fan/fan_varying_rpm.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1Oi3NPOTk_VTkMUUW9hx6a0Pn1fbRrLFZ",
+      "name": "fan_varying_rpm.raw",
+      "path": "evio/data/fan/fan_varying_rpm.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "19a3zd5AhCpKzAhECfrl36Haaqw8KCMpW",
+      "name": "events.dat",
+      "path": "evio/data/fred-0/events/events.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1ob1v1z4roYzIl4frvTrQOCIDUEK8V_cq",
+      "name": "events.raw",
+      "path": "evio/data/fred-0/events/events.raw",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1QUQJD2AK3Ypp2AXCwzo6_rPVmesLOrF3",
+      "name": "events.dat",
+      "path": "evio/data/fred-0/events/events.dat",
+      "size": 0,
+      "sha256": ""
+    },
+    {
+      "id": "1H5lNiLYz1FPANnwydx_0iqXv08h2hgBU",
+      "name": "events.raw",
+      "path": "evio/data/fred-0/events/events.raw",
+      "size": 0,
+      "sha256": ""
+    }
+  ]
+}

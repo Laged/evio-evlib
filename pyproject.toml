@@ -4,6 +4,7 @@ members = [
     "workspace/libs/*",
     "workspace/plugins/*",
     "workspace/apps/*",
+    "workspace/tools/*",
 ]
 
 [tool.uv]
