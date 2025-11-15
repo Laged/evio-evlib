@@ -2,44 +2,61 @@
 
 Core event camera processing library with evlib integration.
 
-## Purpose
+## Features
 
-Provides:
-- FileEventAdapter using evlib (10x faster file loading)
-- EventSource protocol for file/stream abstraction
-- DetectorPlugin protocol for extensible algorithms
-- Representation wrappers (time surface, voxel grids)
+- **evlib integration**: 10-200x faster event loading and processing
+- **Legacy compatibility**: Validated parity with legacy evio.core.recording loader
+- **Polars-based**: Modern DataFrame API for event manipulation
+- **Type-safe**: Full type hints and protocol definitions
 
 ## Testing
 
-### Comparison Tests
+### Run All Tests
 
-**Purpose:** Validate that evlib-loaded EVT3 .dat files produce statistically equivalent results to the legacy loader.
-
-**Run:**
 ```bash
-run-evlib-tests
+nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/ -v
 ```
 
-Or directly:
+### Run Specific Test Suites
+
+**Conversion fidelity tests** (.raw vs _evt3.dat):
 ```bash
-uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v
+nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py::test_evlib_vs_legacy_stats -v
 ```
 
-**What it checks:**
-- Event counts (exact match)
-- Timestamp ranges (0.01% tolerance)
-- Spatial bounds x/y min/max (0.01% tolerance)
-- Polarity distribution (exact match)
+**Legacy parity tests** (legacy loader vs evlib):
+```bash
+nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py::test_legacy_loader_vs_evlib_parity -v
+```
 
-**Prerequisites:**
-1. Datasets extracted: `unzip-datasets`
-2. EVT3 conversion: `convert-all-datasets`
+**HDF5 export tests**:
+```bash
+nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/test_legacy_export.py -v
+```
 
-**Datasets tested:**
-- fan_const_rpm (30.4M events)
-- drone_idle (140.7M events)
+## Test Architecture
 
-## Status
+### Conversion Fidelity Tests
 
-🚧 Skeleton - awaiting Work Stream 2 (hackathon-poc) implementation
+Validate `.raw → _evt3.dat` conversion preserves data:
+- Load .raw with evlib
+- Load _evt3.dat with evlib
+- Compare stats (should be identical)
+
+### Legacy Parity Tests
+
+Validate legacy loader matches evlib output:
+1. Load legacy .dat with `evio.core.recording.open_dat()`
+2. Export events to temporary HDF5 (evlib-compatible schema)
+3. Load HDF5 with `evlib.load_events()`
+4. Compare stats (should match exactly)
+
+This proves evlib can replace the legacy loader with confidence.
+
+## Dependencies
+
+- **evlib** (≥0.8.0): Rust-backed event processing
+- **polars** (≥0.20.0): Fast DataFrame library
+- **numpy** (≥1.24.0): Array operations
+- **h5py** (≥3.0.0): HDF5 I/O (dev/test only)
+- **pytest** (≥7.0.0): Testing framework (dev only)
