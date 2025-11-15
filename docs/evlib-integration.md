@@ -35,15 +35,28 @@ Findings:
 
 ---
 
-## 3. Proposed Solution Overview
+## 3. Requirements & Dataset Reality
 
-| Stage | Action | Owners | Notes |
-| --- | --- | --- | --- |
-| Toolchain | Package OpenEB CLI inside `flake.nix` devShell | Infrastructure | Gives us `metavision_raw_to_dat`/`metavision_player` without manual installs. |
-| Conversion | Author `scripts/convert_raw_to_evt3_dat.sh` (wrapper around OpenEB CLI) | Claude | Automates `.raw` → `.dat` re-encoding with metadata checksums and logging. |
-| Validation | Extend `workspace/libs/evio-core` loader tests to assert that the converted `.dat` now passes `evlib.load_events` | Claude | Uses Polars head comparison vs the `.raw` load to guarantee parity. |
-| Documentation | Update `docs/data/evio-data-format.md` & `docs/setup.md` with the conversion workflow and storage guidance | Codex + Claude | Ensures new contributors follow the standard path. |
-| RVT alignment | Wire the converted `.dat` datasets into the RVT preprocessing plan from `evio/docs/evlib-rvt-architecture.md` | Claude | Unlocks histogram/time-surface generation on real captures. |
+### Original Assumption (INCORRECT)
+The plan assumed .raw files were conversions of legacy .dat files using OpenEB.
+
+### Actual Situation (CONFIRMED)
+Investigation revealed the .raw files are **independent IDS camera recordings** from Nov 2025:
+- Different hardware (IDS vs Sensofusion)
+- Different capture sessions (Nov 2025 vs earlier)
+- Different resolutions (2040×1793 actual vs 1280×720)
+- Different durations (682-717 sec vs 9-24 sec)
+- Different event counts (30-73M vs 26-64M)
+- Broken polarity encoding (0 OFF events)
+
+See diagnostic evidence in `scripts/diagnose_fan_data.py` and `scripts/compare_all_fan_files.py`.
+
+### Revised Requirements
+
+1. **Export legacy .dat to HDF5** - Convert actual Sensofusion recordings to evlib-compatible format
+2. **Update demos** - Point `run-demo-fan-ev3` at the exported legacy HDF5 files
+3. **Fix parity tests** - Compare legacy loader vs evlib on the SAME recording (via HDF5)
+4. **Document IDS .raw usage** - Label as separate sample data, useful for evlib experimentation but not legacy parity
 
 ---
 
