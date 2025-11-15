@@ -77,9 +77,9 @@
             echo ""
 
             # Shell aliases for convenience
-            alias run-demo-fan='uv run --package evio python scripts/play_dat.py data/fan/fan_const_rpm.dat'
-            alias run-mvp-1='uv run --package evio python scripts/mvp_1_density.py data/fan/fan_const_rpm.dat'
-            alias run-mvp-2='uv run --package evio python scripts/mvp_2_voxel.py data/fan/fan_varying_rpm.dat'
+            alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
+            alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
+            alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
 
             echo "Read .claude/skills/dev-environment.md for workflow guidelines"
             echo "=========================================="
