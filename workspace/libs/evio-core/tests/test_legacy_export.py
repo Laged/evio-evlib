@@ -46,39 +46,39 @@ def test_export_legacy_to_hdf5_basic(tmp_path):
     assert out_path.exists()
 
     with h5py.File(out_path, 'r') as f:
-        # Check datasets exist
+        # Check datasets exist (evlib expects /events/p not /events/polarity)
         assert 'events/t' in f
         assert 'events/x' in f
         assert 'events/y' in f
-        assert 'events/polarity' in f
+        assert 'events/p' in f
 
         # Check data
         t = f['events/t'][:]
         x = f['events/x'][:]
         y = f['events/y'][:]
-        p = f['events/polarity'][:]
+        p = f['events/p'][:]
 
         assert len(t) == 3
         np.testing.assert_array_equal(t, [1000, 2000, 3000])
         np.testing.assert_array_equal(x, [100, 150, 200])
         np.testing.assert_array_equal(y, [200, 250, 300])
-        # Polarity is converted from 0/1 to -1/+1 for evlib
-        np.testing.assert_array_equal(p, [1, -1, 1])
+        # Polarity is stored as 0/1 in HDF5 (evlib converts to -1/+1 when loading)
+        np.testing.assert_array_equal(p, [1, 0, 1])
 
-        # Check metadata
-        assert f['events'].attrs['width'] == 1280
-        assert f['events'].attrs['height'] == 720
-        assert f['events'].attrs['source'] == 'legacy_dat'
+        # Check metadata (stored at file level, not events group level)
+        assert f.attrs['width'] == 1280
+        assert f.attrs['height'] == 720
+        assert f.attrs['source'] == 'legacy_dat'
 
 
 def test_export_legacy_to_hdf5_polarity_mapping(tmp_path):
-    """Test polarity is correctly mapped from 0/1 to -1/+1."""
+    """Test polarity is stored as 0/1 in HDF5 (evlib converts to -1/+1 on load)."""
     timestamps = np.array([1000, 2000], dtype=np.int64)
 
     # Polarity 0 and polarity 1
     event_words = np.array([
-        (0 << 28) | (100 << 14) | 50,   # p=0 → should become -1
-        (1 << 28) | (100 << 14) | 50,   # p=1 → should become +1
+        (0 << 28) | (100 << 14) | 50,   # p=0 → stored as 0
+        (1 << 28) | (100 << 14) | 50,   # p=1 → stored as 1
     ], dtype=np.uint32)
 
     order = np.array([0, 1], dtype=np.int32)
@@ -95,6 +95,6 @@ def test_export_legacy_to_hdf5_polarity_mapping(tmp_path):
     export_legacy_to_hdf5(recording, out_path)
 
     with h5py.File(out_path, 'r') as f:
-        p = f['events/polarity'][:]
-        # evlib uses -1/+1, not 0/1
-        np.testing.assert_array_equal(p, [-1, 1])
+        p = f['events/p'][:]
+        # HDF5 stores 0/1, evlib converts to -1/+1 when loading
+        np.testing.assert_array_equal(p, [0, 1])

@@ -334,3 +334,113 @@ def test_evlib_vs_legacy_stats(
     print(f"  X range: {dat_stats['x_min']} → {dat_stats['x_max']}")
     print(f"  Y range: {dat_stats['y_min']} → {dat_stats['y_max']}")
     print(f"  Polarity: 0={dat_stats['p_count_0']:,}, 1={dat_stats['p_count_1']:,}")
+
+
+# Legacy loader vs evlib parity tests
+LEGACY_PARITY_DATASETS_AVAILABLE = (
+    Path("evio/data/fan/fan_const_rpm.dat").exists() and
+    Path("evio/data/drone_idle/drone_idle.dat").exists()
+)
+
+
+@pytest.mark.skipif(
+    not LEGACY_PARITY_DATASETS_AVAILABLE,
+    reason="Legacy parity datasets not found. Run 'unzip-datasets' and 'convert-all-datasets' first."
+)
+@pytest.mark.parametrize("dataset_name,legacy_dat,width,height", [
+    (
+        "fan_const_rpm",
+        "evio/data/fan/fan_const_rpm.dat",
+        1280,
+        720,
+    ),
+    (
+        "drone_idle",
+        "evio/data/drone_idle/drone_idle.dat",
+        1280,
+        720,
+    ),
+])
+def test_legacy_loader_vs_evlib_parity(
+    dataset_name: str,
+    legacy_dat: str,
+    width: int,
+    height: int,
+    tmp_path_factory,
+):
+    """Validates legacy loader parity with evlib via HDF5 round-trip.
+
+    This test proves the legacy loader (evio.core.recording.open_dat) and evlib produce
+    equivalent event statistics on identical data.
+
+    Flow:
+    1. Load original custom .dat with legacy loader
+    2. Export events to temporary HDF5 file (evlib-compatible schema)
+    3. Load HDF5 with evlib
+    4. Compare stats: legacy extraction vs evlib load
+
+    Once passing, we can safely retire evio.core.recording knowing evlib reproduces its output.
+    """
+    from evio.core.recording import open_dat
+    from tests.helpers.legacy_export import export_legacy_to_hdf5
+
+    # Load with legacy loader
+    recording = open_dat(legacy_dat, width=width, height=height)
+
+    # Export to temporary HDF5
+    tmp_dir = tmp_path_factory.mktemp("legacy_export")
+    hdf5_path = tmp_dir / f"{dataset_name}.h5"
+
+    legacy_stats_from_export = export_legacy_to_hdf5(recording, hdf5_path)
+
+    # Also compute stats directly from recording for verification
+    legacy_stats = compute_legacy_stats(recording)
+
+    # Load HDF5 with evlib
+    evlib_stats = compute_evlib_stats(hdf5_path)
+
+    # Compare export stats vs direct legacy stats (sanity check)
+    assert legacy_stats['event_count'] == legacy_stats_from_export['event_count']
+    assert legacy_stats['t_min'] == legacy_stats_from_export['t_min']
+    assert legacy_stats['t_max'] == legacy_stats_from_export['t_max']
+
+    # Compare legacy vs evlib (main validation)
+    assert legacy_stats['event_count'] == evlib_stats['event_count'], \
+        f"{dataset_name}: Event count mismatch (legacy={legacy_stats['event_count']}, evlib={evlib_stats['event_count']})"
+
+    # Polarity comparison: legacy uses 0/1, export converts to -1/+1, evlib reads -1/+1
+    assert legacy_stats['p_count_0'] == evlib_stats['p_count_0'], \
+        f"{dataset_name}: Polarity -1 count mismatch (legacy 0s={legacy_stats['p_count_0']}, evlib -1s={evlib_stats['p_count_0']})"
+
+    assert legacy_stats['p_count_1'] == evlib_stats['p_count_1'], \
+        f"{dataset_name}: Polarity +1 count mismatch (legacy 1s={legacy_stats['p_count_1']}, evlib +1s={evlib_stats['p_count_1']})"
+
+    # Timestamp range - should match exactly
+    assert legacy_stats['t_min'] == evlib_stats['t_min'], \
+        f"{dataset_name}: t_min mismatch (legacy={legacy_stats['t_min']}, evlib={evlib_stats['t_min']})"
+
+    assert legacy_stats['t_max'] == evlib_stats['t_max'], \
+        f"{dataset_name}: t_max mismatch (legacy={legacy_stats['t_max']}, evlib={evlib_stats['t_max']})"
+
+    # Spatial ranges - should match exactly
+    assert legacy_stats['x_min'] == evlib_stats['x_min'], \
+        f"{dataset_name}: x_min mismatch (legacy={legacy_stats['x_min']}, evlib={evlib_stats['x_min']})"
+
+    assert legacy_stats['x_max'] == evlib_stats['x_max'], \
+        f"{dataset_name}: x_max mismatch (legacy={legacy_stats['x_max']}, evlib={evlib_stats['x_max']})"
+
+    assert legacy_stats['y_min'] == evlib_stats['y_min'], \
+        f"{dataset_name}: y_min mismatch (legacy={legacy_stats['y_min']}, evlib={evlib_stats['y_min']})"
+
+    assert legacy_stats['y_max'] == evlib_stats['y_max'], \
+        f"{dataset_name}: y_max mismatch (legacy={legacy_stats['y_max']}, evlib={evlib_stats['y_max']})"
+
+    # Print summary for visibility
+    print(f"\n{dataset_name} legacy parity validation:")
+    print(f"  Events: {legacy_stats['event_count']:,}")
+    print(f"  Legacy extraction → HDF5 → evlib load: ✓ MATCH")
+    print(f"  Time range: {legacy_stats['t_min']} → {legacy_stats['t_max']}")
+    print(f"  X range: {legacy_stats['x_min']} → {legacy_stats['x_max']}")
+    print(f"  Y range: {legacy_stats['y_min']} → {legacy_stats['y_max']}")
+    print(f"  Polarity: -1={legacy_stats['p_count_0']:,}, +1={legacy_stats['p_count_1']:,}")
+    print(f"  ✓ Legacy loader matches evlib output on identical data")

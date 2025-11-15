@@ -31,11 +31,11 @@ def export_legacy_to_hdf5(recording, out_path: Path) -> dict[str, int]:
         /events/t        : int64 timestamps in microseconds
         /events/x        : uint16 x coordinates
         /events/y        : uint16 y coordinates
-        /events/polarity : int8 polarity {-1, +1}
+        /events/p        : int8 polarity {0, 1} (evlib converts to -1/+1)
 
-        /events.attrs['width']  : int
-        /events.attrs['height'] : int
-        /events.attrs['source'] : str = "legacy_dat"
+        file.attrs['width']  : int
+        file.attrs['height'] : int
+        file.attrs['source'] : str = "legacy_dat"
     """
     # Decode packed event_words into x, y, polarity
     # See: evio/src/evio/core/mmap.py:151-154
@@ -46,8 +46,8 @@ def export_legacy_to_hdf5(recording, out_path: Path) -> dict[str, int]:
     y = ((event_words >> 14) & 0x3FFF).astype(np.uint16)
     raw_polarity = ((event_words >> 28) & 0xF).astype(np.uint8)
 
-    # Convert polarity: legacy uses 0/1, evlib uses -1/+1
-    polarity = np.where(raw_polarity > 0, 1, -1).astype(np.int8)
+    # Keep polarity as 0/1 - evlib will convert to -1/+1 internally
+    polarity = (raw_polarity > 0).astype(np.int8)
 
     # Timestamps are already sorted and in microseconds
     timestamps = recording.timestamps
@@ -61,7 +61,7 @@ def export_legacy_to_hdf5(recording, out_path: Path) -> dict[str, int]:
         'x_max': int(x.max()),
         'y_min': int(y.min()),
         'y_max': int(y.max()),
-        'p_count_neg': int((polarity == -1).sum()),
+        'p_count_neg': int((polarity == 0).sum()),
         'p_count_pos': int((polarity == 1).sum()),
     }
 
@@ -69,18 +69,15 @@ def export_legacy_to_hdf5(recording, out_path: Path) -> dict[str, int]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     with h5py.File(out_path, 'w') as f:
-        # Create events group
-        events_group = f.create_group('events')
+        # Create datasets (evlib expects /events/t, /events/x, /events/y, /events/p)
+        f.create_dataset('events/t', data=timestamps, dtype='int64')
+        f.create_dataset('events/x', data=x, dtype='uint16')
+        f.create_dataset('events/y', data=y, dtype='uint16')
+        f.create_dataset('events/p', data=polarity, dtype='int8')
 
-        # Write datasets
-        events_group.create_dataset('t', data=timestamps, dtype='int64')
-        events_group.create_dataset('x', data=x, dtype='uint16')
-        events_group.create_dataset('y', data=y, dtype='uint16')
-        events_group.create_dataset('polarity', data=polarity, dtype='int8')
-
-        # Write metadata
-        events_group.attrs['width'] = recording.width
-        events_group.attrs['height'] = recording.height
-        events_group.attrs['source'] = 'legacy_dat'
+        # Write metadata at file level
+        f.attrs['width'] = recording.width
+        f.attrs['height'] = recording.height
+        f.attrs['source'] = 'legacy_dat'
 
     return stats
