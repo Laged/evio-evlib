@@ -16,6 +16,7 @@ members = [
     "downloader",
     "evio",
     "evio-core",
+    "evio-verifier",
     "fan-bbox",
 ]
 
@@ -354,6 +355,21 @@ dependencies = [
 requires-dist = [
     { name = "evlib", specifier = ">=0.8.0" },
     { name = "numpy", specifier = ">=1.24.0" },
+    { name = "polars", specifier = ">=0.20.0" },
+]
+
+[[package]]
+name = "evio-verifier"
+version = "0.1.0"
+source = { editable = "workspace/tools/evio-verifier" }
+dependencies = [
+    { name = "evlib" },
+    { name = "polars" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "evlib", specifier = ">=0.2.2" },
     { name = "polars", specifier = ">=0.20.0" },
 ]
 

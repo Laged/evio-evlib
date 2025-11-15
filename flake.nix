@@ -27,6 +27,69 @@
           pkgs.libxkbcommon
         ];
 
+        # Convert EVT3 raw to dat script
+        convertEvt3Script = pkgs.writeShellScriptBin "convert-evt3-raw-to-dat" ''
+          set -euo pipefail
+          exec ${python}/bin/python scripts/convert_evt3_raw_to_dat.py "$@"
+        '';
+
+        # Convert all datasets script
+        convertAllDatasetsScript = pkgs.writeShellScriptBin "convert-all-datasets" ''
+          set -euo pipefail
+
+          DATA_DIR="evio/data"
+
+          echo "=========================================="
+          echo "  Convert All Datasets to EVT3 .dat"
+          echo "=========================================="
+          echo ""
+
+          # Find all .raw files
+          RAW_FILES=$(find "$DATA_DIR" -name "*.raw" -type f 2>/dev/null || true)
+
+          if [ -z "$RAW_FILES" ]; then
+              echo "❌ No .raw files found in $DATA_DIR"
+              echo ""
+              echo "Run 'unzip-datasets' first to extract datasets."
+              exit 1
+          fi
+
+          # Count files
+          FILE_COUNT=$(echo "$RAW_FILES" | wc -l | tr -d ' ')
+          echo "Found $FILE_COUNT .raw files to convert"
+          echo ""
+
+          # Convert each file
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+
+          for RAW_FILE in $RAW_FILES; do
+              echo "Converting: $RAW_FILE"
+              if ${python}/bin/python scripts/convert_evt3_raw_to_dat.py "$RAW_FILE" --force; then
+                  SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                  FAIL_COUNT=$((FAIL_COUNT + 1))
+                  echo "⚠️  Failed to convert $RAW_FILE"
+              fi
+              echo ""
+          done
+
+          # Summary
+          echo "=========================================="
+          echo "  Conversion Summary"
+          echo "=========================================="
+          echo ""
+          echo "✅ Successfully converted: $SUCCESS_COUNT files"
+
+          if [ $FAIL_COUNT -gt 0 ]; then
+              echo "❌ Failed: $FAIL_COUNT files"
+          fi
+
+          echo ""
+          echo "Verify converted files with:"
+          echo "  uv run --package evio-verifier verify-dat <file>.dat"
+        '';
+
         # Unzip datasets script
         unzipDatasetsScript = pkgs.writeShellScriptBin "unzip-datasets" ''
           set -euo pipefail
@@ -155,6 +218,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             pkgs.uv                 # UV package manager
             pkgs.gdown              # Google Drive downloader
             pkgs.unzip              # ZIP extraction
+            convertEvt3Script       # convert-evt3-raw-to-dat command
+            convertAllDatasetsScript # convert-all-datasets command
             unzipDatasetsScript     # unzip-datasets command
 
             # Rust toolchain (for evlib compilation)
@@ -221,6 +286,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "📊 Dataset Management:"
             echo "  unzip-datasets       : Extract junction-sensofusion.zip"
             echo "  download-datasets    : Download from Google Drive (~1.4 GB)"
+            echo "  convert-all-datasets : Convert all .raw files to EVT3 .dat"
             echo ""
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"
