@@ -19,6 +19,7 @@ dependencies = [
     "evlib>=0.1.0",
     "polars>=0.20.0",
     "gdown>=5.2.0",
+    "h5py>=3.0.0",
 ]
 
 [project.optional-dependencies]
