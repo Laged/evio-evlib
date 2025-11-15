@@ -107,6 +107,26 @@ def compute_evlib_stats(dat_path: Path) -> dict[str, int]:
     return {k: int(v) for k, v in stats.items()}
 
 
+def assert_within_tolerance(expected: int, actual: int, tolerance: float, label: str = "value") -> None:
+    """Assert values match within percentage tolerance.
+
+    Args:
+        expected: Expected value from legacy loader
+        actual: Actual value from evlib loader
+        tolerance: Maximum relative difference (e.g., 0.0001 = 0.01%)
+        label: Description for error messages
+
+    Raises:
+        AssertionError: If values differ by more than tolerance
+    """
+    if expected == 0:
+        assert actual == 0, f"{label}: Expected 0, got {actual}"
+    else:
+        rel_diff = abs(actual - expected) / abs(expected)
+        assert rel_diff <= tolerance, \
+            f"{label}: Expected {expected}, got {actual} (diff: {rel_diff:.4%} > {tolerance:.4%})"
+
+
 def test_decode_legacy_events():
     """Test decoding of packed uint32 event words."""
     # Create test event: x=100, y=200, polarity=1
@@ -196,3 +216,32 @@ def test_compute_evlib_stats():
     assert stats['p_count_0'] >= 0
     assert stats['p_count_1'] >= 0
     assert stats['p_count_0'] + stats['p_count_1'] == stats['event_count']
+
+
+def test_assert_within_tolerance_exact_match():
+    """Test tolerance check with exact match."""
+    assert_within_tolerance(1000, 1000, 0.0001, "exact")
+    # Should not raise
+
+
+def test_assert_within_tolerance_within_bounds():
+    """Test tolerance check within bounds."""
+    # 0.01% of 10000 = 1, so 10001 should pass
+    assert_within_tolerance(10000, 10001, 0.0001, "within")
+    # Should not raise
+
+
+def test_assert_within_tolerance_exceeds_bounds():
+    """Test tolerance check exceeds bounds."""
+    with pytest.raises(AssertionError, match="diff:"):
+        # 0.01% of 10000 = 1, so 10002 should fail (0.02% diff)
+        assert_within_tolerance(10000, 10002, 0.0001, "exceeds")
+
+
+def test_assert_within_tolerance_zero():
+    """Test tolerance check with zero expected."""
+    assert_within_tolerance(0, 0, 0.0001, "zero")
+    # Should not raise
+
+    with pytest.raises(AssertionError):
+        assert_within_tolerance(0, 1, 0.0001, "zero_fail")
