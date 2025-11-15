@@ -8,6 +8,12 @@ Key differences from fan-rpm-demo:
 - Uses pick_propellers_at_time (not pick_geom_at_time) for multi-ellipse lookup
 - Tracks per-propeller RPM separately (propeller_data dict)
 - Shows stacked view with warning overlay (NO matplotlib plots)
+
+Known Limitations:
+- Sparse datasets (e.g., drone_idle early frames) may fail detection
+- Try --pre-threshold 50 --window-ms 60 for sparse data
+- Try --skip-seconds N to find active segments
+- See docs/DRONE_DETECTOR_DATASET_LIMITATIONS.md for details
 """
 
 import argparse
