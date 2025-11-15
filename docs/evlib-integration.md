@@ -214,3 +214,31 @@ With these tests passing, we can safely deprecate `evio.core.recording` knowing 
 
 **Next action:** Plan migration to remove legacy loader from production code.
 
+---
+
+## 9. Demo Commands
+
+**Available demo aliases:**
+
+```bash
+# Legacy loader on custom .dat format
+run-demo-fan
+
+# evlib loader on converted EVT3 .dat (requires convert-all-datasets)
+run-demo-fan-ev3
+```
+
+**Prerequisites for evlib demo:**
+1. Extract datasets: `unzip-datasets`
+2. Convert to EVT3: `convert-all-datasets`
+
+Both commands launch an OpenCV window showing event playback:
+- Press `q` or `ESC` to quit
+- HUD displays playback speed and timing info
+
+**Comparison:**
+- `run-demo-fan`: Uses legacy `evio.core.recording.open_dat()` loader
+- `run-demo-fan-ev3`: Uses `evlib.load_events()` with 10-200x faster performance
+
+The evlib demo validates the complete EVT3 integration path end-to-end.
+
