@@ -1,0 +1,15 @@
+[project]
+name = "fan-bbox"
+version = "0.1.0"
+description = "Fan bounding box detector plugin"
+requires-python = ">=3.11"
+dependencies = [
+    "evio-core",
+]
+
+[tool.uv.sources]
+evio-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
