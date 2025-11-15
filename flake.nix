@@ -27,6 +27,69 @@
           pkgs.libxkbcommon
         ];
 
+        # Convert EVT3 raw to dat script
+        convertEvt3Script = pkgs.writeShellScriptBin "convert-evt3-raw-to-dat" ''
+          set -euo pipefail
+          exec ${pkgs.uv}/bin/uv run python scripts/convert_evt3_raw_to_dat.py "$@"
+        '';
+
+        # Convert all datasets script
+        convertAllDatasetsScript = pkgs.writeShellScriptBin "convert-all-datasets" ''
+          set -euo pipefail
+
+          DATA_DIR="evio/data"
+
+          echo "=========================================="
+          echo "  Convert All Datasets to EVT3 .dat"
+          echo "=========================================="
+          echo ""
+
+          # Find all .raw files
+          RAW_FILES=$(find "$DATA_DIR" -name "*.raw" -type f 2>/dev/null || true)
+
+          if [ -z "$RAW_FILES" ]; then
+              echo "❌ No .raw files found in $DATA_DIR"
+              echo ""
+              echo "Run 'unzip-datasets' first to extract datasets."
+              exit 1
+          fi
+
+          # Count files
+          FILE_COUNT=$(echo "$RAW_FILES" | wc -l | tr -d ' ')
+          echo "Found $FILE_COUNT .raw files to convert"
+          echo ""
+
+          # Convert each file
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+
+          for RAW_FILE in $RAW_FILES; do
+              echo "Converting: $RAW_FILE"
+              if ${pkgs.uv}/bin/uv run python scripts/convert_evt3_raw_to_dat.py "$RAW_FILE" --force; then
+                  SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                  FAIL_COUNT=$((FAIL_COUNT + 1))
+                  echo "⚠️  Failed to convert $RAW_FILE"
+              fi
+              echo ""
+          done
+
+          # Summary
+          echo "=========================================="
+          echo "  Conversion Summary"
+          echo "=========================================="
+          echo ""
+          echo "✅ Successfully converted: $SUCCESS_COUNT files"
+
+          if [ $FAIL_COUNT -gt 0 ]; then
+              echo "❌ Failed: $FAIL_COUNT files"
+          fi
+
+          echo ""
+          echo "Verify converted files with:"
+          echo "  uv run --package evio-verifier verify-dat <file>.dat"
+        '';
+
         # Unzip datasets script
         unzipDatasetsScript = pkgs.writeShellScriptBin "unzip-datasets" ''
           set -euo pipefail
@@ -146,6 +209,18 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
 '
         '';
 
+        # Convert legacy .dat to HDF5 script
+        convertLegacyDatToHdf5Script = pkgs.writeShellScriptBin "convert-legacy-dat-to-hdf5" ''
+          set -euo pipefail
+          exec ${pkgs.uv}/bin/uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$@"
+        '';
+
+        # Convert all legacy .dat to HDF5 script
+        convertAllLegacyToHdf5Script = pkgs.writeShellScriptBin "convert-all-legacy-to-hdf5" ''
+          set -euo pipefail
+          exec ${pkgs.bash}/bin/bash scripts/convert_all_legacy_to_hdf5.sh
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -155,7 +230,11 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             pkgs.uv                 # UV package manager
             pkgs.gdown              # Google Drive downloader
             pkgs.unzip              # ZIP extraction
+            convertEvt3Script       # convert-evt3-raw-to-dat command
+            convertAllDatasetsScript # convert-all-datasets command
             unzipDatasetsScript     # unzip-datasets command
+            convertLegacyDatToHdf5Script # convert-legacy-dat-to-hdf5 command
+            convertAllLegacyToHdf5Script # convert-all-legacy-to-hdf5 command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -219,23 +298,45 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  Sync workspace: uv sync"
             echo ""
             echo "📊 Dataset Management:"
-            echo "  unzip-datasets       : Extract junction-sensofusion.zip"
-            echo "  download-datasets    : Download from Google Drive (~1.4 GB)"
+            echo "  unzip-datasets              : Extract junction-sensofusion.zip"
+            echo "  download-datasets           : Download from Google Drive (~1.4 GB)"
+            echo ""
+            echo "📦 Legacy Data Export (RECOMMENDED):"
+            echo "  convert-legacy-dat-to-hdf5  : Convert single legacy .dat to evlib HDF5"
+            echo "  convert-all-legacy-to-hdf5  : Convert ALL legacy .dat to evlib HDF5"
+            echo ""
+            echo "🧪 Experimental (IDS Camera Data):"
+            echo "  convert-all-datasets        : Convert .raw to _evt3.dat (IDS only, not legacy)"
+            echo "  convert-evt3-raw-to-dat     : Manual .raw → .dat (experimental)"
             echo ""
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"
             echo ""
+            echo "🧪 Testing:"
+            echo "  run-evlib-tests      : Compare evlib vs legacy loader"
+            echo ""
             echo "Demo Aliases:"
-            echo "  run-demo-fan         : Play fan dataset"
+            echo "  run-demo-fan         : Play fan dataset (legacy loader)"
+            echo "  run-demo-fan-ev3     : Play fan dataset (evlib on legacy HDF5 export)"
             echo "  run-mvp-1            : MVP 1 - Event density"
             echo "  run-mvp-2            : MVP 2 - Voxel FFT"
+            echo ""
+            echo "NOTE: run-demo-fan-ev3 uses legacy export (requires convert-legacy-dat-to-hdf5)"
+            echo ""
+            echo "📈 Experimental IDS Data Sandbox:"
+            echo "  run-evlib-raw-demo   : Load .raw with evlib (IDS camera, not legacy)"
+            echo "  run-evlib-raw-player : Real-time .raw playback (IDS camera, not legacy)"
             echo ""
 
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
+            alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
+            alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_legacy.h5'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
+            alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
+            alias run-evlib-raw-player='uv run --package evlib-examples evlib-raw-player'
 
             echo "Read .claude/skills/dev-environment.md for workflow guidelines"
             echo "=========================================="

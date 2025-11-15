@@ -19,6 +19,31 @@
 
 ---
 
+## 2.3 Dataset Sources in ZIP Archive
+
+**IMPORTANT:** The `junction-sensofusion.zip` archive contains TWO distinct dataset collections:
+
+### Legacy Sensofusion .dat Files
+- Source: Original Sensofusion event camera recordings
+- Format: Custom binary format with minimal header (% Height, % Version 2, % end)
+- Resolution: 1280×720 (hardcoded in loader)
+- Examples: `fan/fan_const_rpm.dat`, `fan/fan_varying_rpm.dat`
+- Loader: `evio.core.recording.open_dat(path, width=1280, height=720)`
+- **NOT compatible with evlib** - requires conversion (see Section 5)
+
+### IDS Camera .raw Files (EVT3 Format)
+- Source: NEW IDS Imaging Development Systems captures (Nov 2025)
+- Format: Standard Prophesee EVT3 with full ASCII header
+- Resolution: Header claims 1280×720, but actual events span 2040×1793
+- Duration: 682-717 seconds (much longer than legacy files)
+- Examples: `fan/fan_const_rpm.raw`, `fan/fan_varying_rpm.raw`
+- Loader: `evlib.load_events(path)` (native support)
+- **NOT equivalent to legacy .dat files** - different recording sessions
+
+**These are NOT the same recordings!** Do not compare metrics between legacy .dat and _evt3.dat files derived from .raw - they capture different sessions with different hardware.
+
+---
+
 ## 2. Format Inspection
 
 Commands run from repo root (`nix develop` → `uv run` not required for inspection):
@@ -112,6 +137,22 @@ uv run python evio/scripts/convert_dat_to_h5.py \
 ### 3.3 Optional – Contribute Decoder to evlib
 
 If we want evlib to read the custom `.dat` files directly, we would need to upstream a decoder that understands the `% Height / % Version 2` header and event packing scheme. That requires Rust changes plus documentation of the binary layout; for hackathon cadence, conversion is faster.
+
+---
+
+## Experimental: IDS Camera Recordings
+
+The repository contains .raw files from IDS Imaging cameras (Nov 2025) in EVT3 format.
+These are **separate recordings** from different hardware, not conversions of legacy .dat files.
+
+**Key differences from legacy data:**
+- Resolution: Header claims 1280×720, events span ~2040×1793
+- Duration: 682-717 seconds (vs 9-24 seconds for legacy)
+- Polarity: All show 0 OFF events (encoding issue)
+
+**Usage:** Experimental evlib testing only. NOT for legacy parity validation.
+
+See `docs/data/datasets.md` for complete manifest.
 
 ---
 
