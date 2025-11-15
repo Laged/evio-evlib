@@ -35,33 +35,27 @@ async def download_with_confirmation(
     """
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-    # Step 1: Check if confirmation needed (HEAD request)
-    try:
-        async with session.head(url, allow_redirects=True) as resp:
-            needs_confirm = "confirm=" in str(resp.url) or \
-                           "download_warning" in resp.headers.get("content-disposition", "")
-    except Exception as e:
-        return False, f"HEAD request failed: {str(e)}"
-
-    if not needs_confirm:
-        # Small file - direct download
-        try:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return False, f"HTTP {resp.status}: {resp.reason}"
-
-                async with aiofiles.open(path, 'wb') as f:
-                    async for chunk in resp.content.iter_chunked(1 << 20):  # 1MB chunks
-                        await f.write(chunk)
-                        if progress_callback:
-                            progress_callback(len(chunk))
-            return True, ""
-        except Exception as e:
-            return False, f"Download failed: {str(e)}"
-
-    # Step 2: Large file - fetch confirmation page to get token AND cookie
+    # Step 1: Try to get the file - check if we get HTML (confirmation needed)
+    # Google Drive doesn't reliably indicate confirmation via HEAD, so we just try GET
     try:
         async with session.get(url) as resp:
+            if resp.status != 200:
+                return False, f"HTTP {resp.status}: {resp.reason}"
+
+            # Check if we got HTML (needs confirmation) or binary data (direct download)
+            content_type = resp.headers.get('content-type', '')
+
+            if 'text/html' not in content_type:
+                # Got the file directly - download it
+                async with aiofiles.open(path, 'wb') as f:
+                    # Read response body
+                    content = await resp.read()
+                    await f.write(content)
+                    if progress_callback:
+                        progress_callback(len(content))
+                return True, ""
+
+            # Got HTML - need to extract confirmation token
             html = await resp.text()
 
             # Extract confirmation token from HTML
@@ -82,9 +76,9 @@ async def download_with_confirmation(
             # CRITICAL: Session now has download_warning cookie from this response
             # aiohttp.ClientSession automatically preserves cookies for the domain
     except Exception as e:
-        return False, f"Failed to fetch confirmation page: {str(e)}"
+        return False, f"Failed to fetch initial response: {str(e)}"
 
-    # Step 3: Download with token (cookie automatically included by session)
+    # Step 2: Download with token (cookie automatically included by session)
     download_url = f"{url}&confirm={token}"
 
     try:
