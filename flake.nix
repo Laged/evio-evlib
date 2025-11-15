@@ -11,6 +11,21 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python311;
+        sharedLibPath = pkgs.lib.makeLibraryPath [
+          pkgs.stdenv.cc.cc.lib
+          pkgs.zlib
+          pkgs.hdf5
+          pkgs.libGL
+          pkgs.libGLU
+          pkgs.glib
+          pkgs.xorg.libX11
+          pkgs.xorg.libXext
+          pkgs.xorg.libXrender
+          pkgs.xorg.libxcb
+          pkgs.xorg.libSM
+          pkgs.xorg.libICE
+          pkgs.libxkbcommon
+        ];
 
         # Data download script
         download-datasets = pkgs.writeShellScriptBin "download-datasets" ''
@@ -211,6 +226,16 @@
 
             # System libraries
             pkgs.opencv4            # OpenCV for visualization
+            pkgs.libGL              # OpenGL runtime required by OpenCV
+            pkgs.libGLU             # GLU for OpenCV/Qt
+            pkgs.glib               # GLib for OpenCV thread helpers
+            pkgs.xorg.libX11        # Qt X11 stack
+            pkgs.xorg.libXext
+            pkgs.xorg.libXrender
+            pkgs.xorg.libxcb
+            pkgs.xorg.libSM
+            pkgs.xorg.libICE
+            pkgs.libxkbcommon
             pkgs.zlib               # Required by some Rust packages
             pkgs.hdf5               # Required by evlib
 
@@ -220,11 +245,7 @@
 
           # Set library paths for Rust-backed libraries (evlib)
           # Use DYLD_LIBRARY_PATH on macOS to override hardcoded homebrew paths
-          LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [
-            pkgs.stdenv.cc.cc.lib
-            pkgs.zlib
-            pkgs.hdf5
-          ]}";
+          LD_LIBRARY_PATH = sharedLibPath;
           DYLD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [
             pkgs.hdf5
             pkgs.zlib
@@ -235,6 +256,7 @@
             echo "  Event Camera Detection Workbench"
             echo "=========================================="
             echo ""
+            export QT_QPA_PLATFORM="xcb"
             echo "Python: $(python --version)"
             echo "UV: $(uv --version)"
             echo ""
