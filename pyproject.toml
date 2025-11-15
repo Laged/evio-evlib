@@ -7,6 +7,4 @@ members = [
 ]
 
 [tool.uv]
-# Require Python 3.11+ across all workspace members
-# This is the intersection of all member requirements
-requires-python = ">=3.11"
+# Python version requirements are specified in each workspace member's pyproject.toml
