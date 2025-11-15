@@ -71,11 +71,11 @@ git status  # Should show uv.lock modified
 # 1. Enter Nix environment
 nix develop
 
-# 2. Workspace auto-initialized by shellHook
-# .venv created, uv sync runs
+# 2. Initialize workspace (first time only)
+uv sync
 
 # 3. Run commands from root
-uv run --package evio python scripts/play_dat.py data/fan/fan_const_rpm.dat
+uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat
 
 # 4. Add dependencies
 uv add --package evio-core scikit-learn

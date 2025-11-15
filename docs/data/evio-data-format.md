@@ -102,12 +102,12 @@ def dat_to_h5(path: Path, width: int, height: int):
 Usage (after adding the helper script):
 
 ```bash
-uv run python scripts/convert_dat_to_h5.py \
-  --input data/fan/fan_const_rpm.dat \
+uv run python evio/scripts/convert_dat_to_h5.py \
+  --input evio/data/fan/fan_const_rpm.dat \
   --width 1280 --height 720
 ```
 
-`evlib.load_events("data/fan/fan_const_rpm.h5")` will then work exactly like the EVT3 `.raw` example.
+`evlib.load_events("evio/data/fan/fan_const_rpm.h5")` will then work exactly like the EVT3 `.raw` example.
 
 ### 3.3 Optional – Contribute Decoder to evlib
 
