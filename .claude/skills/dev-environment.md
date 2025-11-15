@@ -31,7 +31,7 @@ uv run --package <member> <command>
 **Examples:**
 ```bash
 # Run evio demo
-uv run --package evio python scripts/play_dat.py data/fan/fan_const_rpm.dat
+uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat
 
 # Run workspace member script
 uv run --package evio-core python -m evio_core.loaders
@@ -44,6 +44,7 @@ run-mvp-1
 **Never:**
 - ❌ `cd workspace/libs/evio-core && python ...`
 - ❌ `cd evio && uv run ...`
+- ❌ `uv run --package evio python scripts/...` (missing evio/ prefix)
 
 ### Adding Dependencies
 
@@ -98,6 +99,9 @@ uv sync
 
 ❌ `cd workspace/libs/evio-core && python -m evio_core`
 ✅ `uv run --package evio-core python -m evio_core`
+
+❌ `uv run --package evio python scripts/play_dat.py data/fan/file.dat`
+✅ `uv run --package evio python evio/scripts/play_dat.py evio/data/fan/file.dat`
 
 ❌ Adding numpy to `flake.nix` buildInputs
 ✅ Adding numpy to workspace member's `pyproject.toml`
