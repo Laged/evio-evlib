@@ -1,0 +1,12 @@
+[tool.uv.workspace]
+members = [
+    "evio",
+    "workspace/libs/*",
+    "workspace/plugins/*",
+    "workspace/apps/*",
+]
+
+[tool.uv]
+# Require Python 3.11+ across all workspace members
+# This is the intersection of all member requirements
+requires-python = ">=3.11"
