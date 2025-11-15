@@ -312,7 +312,10 @@ def main() -> None:
             # Main warning text with black background box
             text_warn = "WARNING: DRONE DETECTED"
             (tw1, th1), _ = cv2.getTextSize(text_warn, font, font_scale, thickness)
-            x1, y1 = 10, 30
+            # Match original lines 512-518: bottom-right positioning
+            H, W = bottom_half.shape[:2]
+            x1 = W - tw1 - 10
+            y1 = H - 10
             # Draw black background box
             cv2.rectangle(
                 bottom_half,
@@ -335,8 +338,6 @@ def main() -> None:
 
             # Calculate RPM per propeller (using 2-point instantaneous velocity like original)
             rpm_frame: List[float] = []  # RPM values for this frame
-            rpm_font_scale = 0.6
-            rpm_thickness = 2
 
             for prop_idx in sorted(propeller_data.keys()):
                 data = propeller_data[prop_idx]
@@ -364,11 +365,11 @@ def main() -> None:
                 global_mean_rpm = float(np.mean(rpm_values))
 
             # Display frame mean RPM
-            y_offset = 60
             if frame_mean_rpm is not None:
-                text_frame = f"Frame mean: {frame_mean_rpm:.1f} RPM"
-                (tw2, th2), _ = cv2.getTextSize(text_frame, font, rpm_font_scale, rpm_thickness)
-                x2, y2 = 10, y_offset
+                text_rpm = f"RPM: {frame_mean_rpm:5.1f}"  # Match original line 539
+                (tw2, th2), _ = cv2.getTextSize(text_rpm, font, font_scale, thickness)
+                x2 = W - tw2 - 10
+                y2 = y1 - th1 - 10
                 cv2.rectangle(
                     bottom_half,
                     (x2 - 5, y2 - th2 - 5),
@@ -378,21 +379,21 @@ def main() -> None:
                 )
                 cv2.putText(
                     bottom_half,
-                    text_frame,
+                    text_rpm,
                     (x2, y2),
                     font,
-                    rpm_font_scale,
+                    font_scale,
                     (0, 255, 0),  # green
-                    rpm_thickness,
+                    thickness,
                     lineType=cv2.LINE_AA,
                 )
-                y_offset += 30
 
             # Display global mean RPM
             if global_mean_rpm is not None:
-                text_global = f"Global mean: {global_mean_rpm:.1f} RPM"
-                (tw3, th3), _ = cv2.getTextSize(text_global, font, rpm_font_scale, rpm_thickness)
-                x3, y3 = 10, y_offset
+                text_mean = f"Avg RPM: {global_mean_rpm:5.1f}"  # Match original line 562
+                (tw3, th3), _ = cv2.getTextSize(text_mean, font, font_scale, thickness)
+                x3 = W - tw3 - 10
+                y3 = y2 - th2 - 10
                 cv2.rectangle(
                     bottom_half,
                     (x3 - 5, y3 - th3 - 5),
@@ -402,15 +403,14 @@ def main() -> None:
                 )
                 cv2.putText(
                     bottom_half,
-                    text_global,
+                    text_mean,
                     (x3, y3),
                     font,
-                    rpm_font_scale,
+                    font_scale,
                     (0, 255, 0),  # green
-                    rpm_thickness,
+                    thickness,
                     lineType=cv2.LINE_AA,
                 )
-                y_offset += 30
 
         # Stack top and bottom and scale for display
         stacked = np.vstack([vis, bottom_half])
