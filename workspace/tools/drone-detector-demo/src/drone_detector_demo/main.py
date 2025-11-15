@@ -132,8 +132,8 @@ def main() -> None:
                 (pl.col("t") < win_end)
             )
 
-        # Build frame
-        frame_accum = build_accum_frame_evlib(window_events, width, height)
+        # Build frame (use uint16 for geometry detection)
+        frame_accum = build_accum_frame_evlib(window_events, width, height, clip_to_uint8=False)
 
         # Detect multiple ellipses (propellers)
         # Use --debug flag to enable diagnostic output
@@ -250,16 +250,17 @@ def main() -> None:
                 (pl.col("t") >= win_start) &
                 (pl.col("t") < win_end)
             )
-        frame_accum = build_accum_frame_evlib(window_events, width, height)
+        # Build frame with uint8 clipping for visualization (matches original)
+        frame_accum = build_accum_frame_evlib(window_events, width, height, clip_to_uint8=True)
         bottom_half = cv2.cvtColor(frame_accum, cv2.COLOR_GRAY2BGR)
 
         # Track each propeller separately
         for prop_idx, (cx_t, cy_t, a_t, b_t, phi_t) in enumerate(ellipses_t):
-            # Cluster blades for this propeller
+            # Cluster blades for this propeller (use HARDCODED params like original)
             centers = cluster_blades_dbscan_elliptic(
                 x, y, cx_t, cy_t, a_t, b_t, phi_t,
-                eps=5.0,
-                min_samples=args.dbscan_min_samples,
+                eps=5.0,  # HARDCODED (not args.dbscan_eps)
+                min_samples=15,  # HARDCODED (not args.dbscan_min_samples)
                 r_min=0.8,
                 r_max=1.2,
             )
