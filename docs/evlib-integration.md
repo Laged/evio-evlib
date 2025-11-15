@@ -255,3 +255,49 @@ Both commands launch an OpenCV window showing event playback:
 
 The evlib demo validates the complete EVT3 integration path end-to-end.
 
+---
+
+## 10. Legacy .dat Export Implementation (Nov 2025)
+
+### Problem Discovery
+
+Investigation revealed the .raw files in `junction-sensofusion.zip` are **NOT** conversions of legacy .dat files. They are independent IDS camera recordings with:
+- Different resolution (2040×1793 actual vs 1280×720)
+- Different duration (682-717 sec vs 9-24 sec)
+- Different event counts (30-73M vs 26-64M)
+- Broken polarity (0 OFF events)
+
+See diagnostic evidence: `scripts/diagnose_fan_data.py`, `scripts/compare_all_fan_files.py`
+
+### Solution
+
+Export legacy Sensofusion .dat files to evlib-compatible HDF5:
+
+1. **Load** with `evio.core.recording.open_dat(path, width=1280, height=720)`
+2. **Decode** packed event_words into x/y/polarity arrays
+3. **Write** to HDF5 with evlib schema (`/events/t`, `/events/x`, `/events/y`, `/events/p`)
+4. **Validate** with evlib to ensure exact match
+
+### Implementation
+
+- **Exporter:** `evio.core.legacy_export.export_legacy_to_hdf5()`
+- **CLI:** `convert-legacy-dat-to-hdf5 <input.dat> [output.h5]`
+- **Tests:** `test_legacy_export_unit.py` (schema), `test_legacy_export_integration.py` (real files)
+- **Demo:** `run-demo-fan-ev3` now loads `fan_const_rpm_legacy.h5` (same recording as `run-demo-fan`)
+
+### Results
+
+✅ Legacy loader and evlib see **identical events** (exact array match on 26.4M events)
+✅ Demos show same recording (1280×720, 9.5 seconds, balanced polarity)
+✅ Parity tests validate actual legacy behavior (not unrelated IDS captures)
+
+### IDS .raw Files
+
+The IDS .raw files remain available for evlib experimentation:
+- Native EVT3 format (no conversion needed)
+- Longer captures (682-717 seconds)
+- Different scenes/hardware
+- **Not suitable for legacy parity validation**
+
+For legacy .dat → evlib migration, always use the HDF5 export approach.
+
