@@ -1,0 +1,16 @@
+[project]
+name = "detector-ui"
+version = "0.1.0"
+description = "Interactive event camera detection workbench"
+requires-python = ">=3.11"
+dependencies = [
+    "evio-core",
+    "opencv-python>=4.8.0",
+]
+
+[tool.uv.sources]
+evio-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
