@@ -295,7 +295,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  run-evlib-tests      : Compare evlib vs legacy loader"
             echo ""
             echo "Demo Aliases:"
-            echo "  run-demo-fan         : Play fan dataset"
+            echo "  run-demo-fan         : Play fan dataset (legacy loader)"
+            echo "  run-demo-fan-ev3     : Play fan dataset (evlib loader on EVT3)"
             echo "  run-mvp-1            : MVP 1 - Event density"
             echo "  run-mvp-2            : MVP 2 - Voxel FFT"
             echo ""
@@ -304,6 +305,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias download-datasets='uv run --package downloader download-datasets'
             alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
+            alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_evt3.dat'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
 
