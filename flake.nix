@@ -90,14 +90,31 @@ print_inventory(inventory)
           echo ""
           echo "Verifying extraction..."
           ${pkgs.uv}/bin/uv run --package downloader python -c '
+from pathlib import Path
 from downloader.verification import check_inventory, print_inventory
 
 inventory = check_inventory()
 
-# Check for expected datasets
-expected = ["fan", "drone_idle", "drone_moving", "fred-0"]
-found = [name for name in expected if name in inventory and (inventory[name].get("dat", 0) > 0 or inventory[name].get("raw", 0) > 0)]
-missing = [name for name in expected if name not in found]
+# Check for expected dataset directories (use actual paths, not inventory keys)
+expected_dirs = {
+    "fan": Path("evio/data/fan"),
+    "drone_idle": Path("evio/data/drone_idle"),
+    "drone_moving": Path("evio/data/drone_moving"),
+    "fred-0": Path("evio/data/fred-0/Event")
+}
+
+missing = []
+for name, path in expected_dirs.items():
+    if not path.exists():
+        missing.append(name)
+    elif name in ["fan", "drone_idle", "drone_moving"]:
+        # Check for .dat or .raw files
+        if not list(path.glob("*.dat")) and not list(path.glob("*.raw")):
+            missing.append(name)
+    elif name == "fred-0":
+        # Check for events.dat or events.raw
+        if not (path / "events.dat").exists() and not (path / "events.raw").exists():
+            missing.append(name)
 
 if missing:
     print("⚠️  Warning: Extraction incomplete")
@@ -115,7 +132,7 @@ print("=" * 50)
 print("  Extraction Summary")
 print("=" * 50)
 print("")
-print(f"✅ Successfully extracted {len(found)} dataset groups")
+print(f"✅ Successfully extracted {len(expected_dirs) - len(missing)} dataset groups")
 print("")
 print_inventory(inventory)
 
