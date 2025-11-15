@@ -35,7 +35,12 @@ Findings:
 
 ---
 
-## 3. Requirements & Dataset Reality
+## 3. Requirements & Dataset Reality (DEPRECATED - See Section 10)
+
+⚠️ **DEPRECATION NOTICE:** This section documents a failed approach.
+The assumption that .raw files were conversions of legacy .dat files was incorrect.
+
+**See Section 10 for the correct approach:** Legacy .dat → HDF5 export via evlib schema.
 
 ### Original Assumption (INCORRECT)
 The plan assumed .raw files were conversions of legacy .dat files using OpenEB.
@@ -60,7 +65,10 @@ See diagnostic evidence in `scripts/diagnose_fan_data.py` and `scripts/compare_a
 
 ---
 
-## 4. Implementation Plan (Detailed)
+## 4. Implementation Plan (DEPRECATED - OpenEB approach abandoned)
+
+⚠️ **This plan was not implemented.** OpenEB conversion was unnecessary.
+Instead, we implemented direct legacy .dat → HDF5 export (see Section 10).
 
 1. **Package OpenEB inside Nix**
    - Fetch `github:prophesee-ai/openeb` in `flake.nix` via `pkgs.callPackage` or `pkgs.fetchFromGitHub`.
@@ -104,8 +112,13 @@ See diagnostic evidence in `scripts/diagnose_fan_data.py` and `scripts/compare_a
      nix develop
      scripts/convert_raw_to_evt3_dat.sh evio/data/fan/fan_const_rpm.raw
      ```
-   - Extend `docs/data/evio-data-format.md` with a new subsection “3.4 EVT3 `.dat` Re-encoding (OpenEB)” referencing the commands above.
+   - Extend `docs/data/evio-data-format.md` with a new subsection "3.4 EVT3 `.dat` Re-encoding (OpenEB)" referencing the commands above.
    - Keep `NEXT_STEPS.md` aligned so future sprints continue from this plan.
+
+---
+
+**Actual Implementation:** See Section 10 for the working legacy export pipeline.
+**Diagnostic Evidence:** See `docs/plans/raw-to-evt3-deprecation.md` for proof that .raw ≠ legacy .dat.
 
 ---
 
