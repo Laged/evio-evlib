@@ -25,7 +25,7 @@ def propeller_mask_from_frame(
     2. Morphological operations to clean noise
     3. Find ALL contours (not just largest)
     4. Fit ellipse to each valid contour
-    5. Filter by HORIZONTAL orientation (drone propellers are horizontal)
+    5. Filter by orientation (keeps angles in [70, 110] degrees to match legacy)
     6. Sort by area and return top max_ellipses
 
     Args:
@@ -33,8 +33,7 @@ def propeller_mask_from_frame(
         max_ellipses: Maximum number of ellipses to detect (typically 2 for drones)
         min_area: Minimum contour area to consider
         max_area_frac: Maximum contour area as fraction of image size
-        horizontal_tolerance: Angle tolerance for horizontal filter (degrees)
-                            Keeps ellipses within ±tolerance of 0° or 180°
+        horizontal_tolerance: DEPRECATED - not used (kept for API compatibility)
 
     Returns:
         List of (cx, cy, a, b, phi) for each detected propeller
@@ -86,15 +85,14 @@ def propeller_mask_from_frame(
         if minor <= 0:
             continue
 
-        # ORIENTATION FILTER: Drone propellers are HORIZONTAL
+        # ORIENTATION FILTER: Match legacy behavior
         # angle_deg is in [0, 180) from OpenCV
-        # We want ellipses near 0° or 180° (horizontal), NOT 90° (vertical)
-        # Reject if too close to vertical (90°)
-        #
-        # NOTE: This fixes a bug in the legacy implementation which incorrectly
-        # kept vertical ellipses (70-110°) but should keep horizontal (0°/180°)
-        if 90.0 - horizontal_tolerance < angle_deg < 90.0 + horizontal_tolerance:
-            continue  # Reject vertical-ish ellipses
+        # Legacy keeps ellipses in range [70, 110] degrees
+        # This appears to work empirically for drone propellers in the dataset
+        if angle_deg < 70.0:
+            continue   # reject
+        if angle_deg > 110.0:
+            continue   # reject
 
         # Convert to standard ellipse parameters
         a = major * 0.5   # semi-major axis
