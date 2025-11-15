@@ -161,6 +161,9 @@ def main() -> None:
     # Track per-propeller data
     propeller_data: Dict[int, Dict[str, List[float]]] = {}
 
+    # Track global RPM values for running mean
+    rpm_values: List[float] = []
+
     current_time = t_min
     frame_count = 0
 
@@ -187,28 +190,57 @@ def main() -> None:
         # Visualize: Create stacked view (top: events, bottom: warning overlay)
         vis = pretty_event_frame_evlib(x, y, p, width, height)
 
-        # Create bottom half with dark background for overlay
-        bottom_half = np.full((height, width, 3), (50, 50, 50), dtype=np.uint8)
+        # Create bottom half with accumulated frame as background
+        # Get window events for accumulation
+        schema = events.schema
+        if isinstance(schema["t"], pl.Duration):
+            window_events = events.filter(
+                (pl.col("t") >= pl.duration(microseconds=win_start)) &
+                (pl.col("t") < pl.duration(microseconds=win_end))
+            )
+        else:
+            window_events = events.filter(
+                (pl.col("t") >= win_start) &
+                (pl.col("t") < win_end)
+            )
+        frame_accum = build_accum_frame_evlib(window_events, width, height)
+        bottom_half = cv2.cvtColor(frame_accum, cv2.COLOR_GRAY2BGR)
 
         # Track each propeller separately
         for prop_idx, (cx_t, cy_t, a_t, b_t, phi_t) in enumerate(ellipses_t):
             # Cluster blades for this propeller
             centers = cluster_blades_dbscan_elliptic(
                 x, y, cx_t, cy_t, a_t, b_t, phi_t,
-                eps=args.dbscan_eps,
+                eps=5.0,
                 min_samples=args.dbscan_min_samples,
                 r_min=0.8,
-                r_max=5.0,
+                r_max=1.2,
             )
 
-            # Draw ellipse on both halves
-            xs_ring, ys_ring = ellipse_points(cx_t, cy_t, a_t, b_t, phi_t, 360, width, height)
-            for xr, yr in zip(xs_ring, ys_ring):
-                vis[yr, xr] = (0, 255, 0)  # green on top
-                bottom_half[yr, xr] = (0, 255, 0)  # green on bottom
+            # Draw ellipse on both halves using cv2.ellipse for smooth rendering
+            cv2.ellipse(
+                vis,
+                (int(cx_t), int(cy_t)),
+                (int(a_t), int(b_t)),
+                np.rad2deg(phi_t),
+                0,
+                360,
+                (0, 255, 0),  # green
+                2,
+            )
+            cv2.ellipse(
+                bottom_half,
+                (int(cx_t), int(cy_t)),
+                (int(a_t), int(b_t)),
+                np.rad2deg(phi_t),
+                0,
+                360,
+                (0, 255, 0),  # green
+                2,
+            )
 
-            cv2.circle(vis, (cx_t, cy_t), 5, (0, 0, 255), -1)
-            cv2.circle(bottom_half, (cx_t, cy_t), 5, (0, 0, 255), -1)
+            cv2.circle(vis, (int(cx_t), int(cy_t)), 4, (0, 0, 255), -1)
+            cv2.circle(bottom_half, (int(cx_t), int(cy_t)), 4, (0, 0, 255), -1)
 
             # Draw cluster centers and compute angle
             if centers:
@@ -231,12 +263,23 @@ def main() -> None:
             font_scale = 0.8
             thickness = 2
 
-            # Main warning text
+            # Main warning text with black background box
             text_warn = "WARNING: DRONE DETECTED"
+            (tw1, th1), _ = cv2.getTextSize(text_warn, font, font_scale, thickness)
+            x1, y1 = 10, 30
+            # Draw black background box
+            cv2.rectangle(
+                bottom_half,
+                (x1 - 5, y1 - th1 - 5),
+                (x1 + tw1 + 5, y1 + 5),
+                (0, 0, 0),
+                thickness=-1,
+            )
+            # Draw text
             cv2.putText(
                 bottom_half,
                 text_warn,
-                (10, 30),
+                (x1, y1),
                 font,
                 font_scale,
                 (0, 0, 255),  # red
@@ -244,34 +287,90 @@ def main() -> None:
                 lineType=cv2.LINE_AA,
             )
 
-            # Show RPM per propeller
-            y_offset = 60
+            # Calculate RPM per propeller (using 2-point instantaneous velocity like original)
+            rpm_frame: List[float] = []  # RPM values for this frame
+            rpm_font_scale = 0.6
+            rpm_thickness = 2
+
             for prop_idx in sorted(propeller_data.keys()):
                 data = propeller_data[prop_idx]
                 if len(data["times"]) >= 2:
-                    # Estimate RPM using unwrap and polyfit
-                    angles_unwrapped = np.unwrap(data["angles"])
-                    times = np.array(data["times"])
-                    coeffs = np.polyfit(times, angles_unwrapped, 1)
-                    omega = coeffs[0]  # rad/s
-                    rpm = (omega / (2.0 * np.pi)) * 60.0
+                    # Use last 2 measurements for instantaneous velocity
+                    last_th = np.unwrap(np.array(data["angles"][-2:]))
+                    last_t = np.array(data["times"][-2:])
+                    dt = last_t[1] - last_t[0]
+                    if dt > 0:
+                        dtheta = last_th[1] - last_th[0]  # rad
+                        omega = dtheta / dt  # rad/s
+                        rpm = omega / (2.0 * np.pi) * 60.0  # RPM
+                        rpm_abs = abs(rpm)
 
-                    text_rpm = f"Propeller {prop_idx}: {abs(rpm):.1f} RPM"
-                    cv2.putText(
-                        bottom_half,
-                        text_rpm,
-                        (10, y_offset),
-                        font,
-                        0.6,
-                        (0, 255, 0),  # green
-                        2,
-                        lineType=cv2.LINE_AA,
-                    )
-                    y_offset += 30
+                        # Track for frame and global means
+                        rpm_frame.append(rpm_abs)
+                        rpm_values.append(rpm_abs)
 
-        # Stack top and bottom
+            # Compute frame mean and global mean
+            frame_mean_rpm = None
+            global_mean_rpm = None
+            if rpm_frame:
+                frame_mean_rpm = float(np.mean(rpm_frame))
+            if rpm_values:
+                global_mean_rpm = float(np.mean(rpm_values))
+
+            # Display frame mean RPM
+            y_offset = 60
+            if frame_mean_rpm is not None:
+                text_frame = f"Frame mean: {frame_mean_rpm:.1f} RPM"
+                (tw2, th2), _ = cv2.getTextSize(text_frame, font, rpm_font_scale, rpm_thickness)
+                x2, y2 = 10, y_offset
+                cv2.rectangle(
+                    bottom_half,
+                    (x2 - 5, y2 - th2 - 5),
+                    (x2 + tw2 + 5, y2 + 5),
+                    (0, 0, 0),
+                    thickness=-1,
+                )
+                cv2.putText(
+                    bottom_half,
+                    text_frame,
+                    (x2, y2),
+                    font,
+                    rpm_font_scale,
+                    (0, 255, 0),  # green
+                    rpm_thickness,
+                    lineType=cv2.LINE_AA,
+                )
+                y_offset += 30
+
+            # Display global mean RPM
+            if global_mean_rpm is not None:
+                text_global = f"Global mean: {global_mean_rpm:.1f} RPM"
+                (tw3, th3), _ = cv2.getTextSize(text_global, font, rpm_font_scale, rpm_thickness)
+                x3, y3 = 10, y_offset
+                cv2.rectangle(
+                    bottom_half,
+                    (x3 - 5, y3 - th3 - 5),
+                    (x3 + tw3 + 5, y3 + 5),
+                    (0, 0, 0),
+                    thickness=-1,
+                )
+                cv2.putText(
+                    bottom_half,
+                    text_global,
+                    (x3, y3),
+                    font,
+                    rpm_font_scale,
+                    (0, 255, 0),  # green
+                    rpm_thickness,
+                    lineType=cv2.LINE_AA,
+                )
+                y_offset += 30
+
+        # Stack top and bottom and scale for display
         stacked = np.vstack([vis, bottom_half])
-        cv2.imshow("Events + Propeller mask + Speed", stacked)
+        scale = 0.7
+        stacked_small = cv2.resize(stacked, None, fx=scale, fy=scale)
+        cv2.imshow("Events + Propeller mask + Speed", stacked_small)
 
         if (cv2.waitKey(1) & 0xFF) in (27, ord("q")):
             break

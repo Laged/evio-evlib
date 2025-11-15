@@ -17,16 +17,19 @@ def propeller_mask_from_frame(
     min_area: float = 145.0,
     max_area_frac: float = 0.01,
     horizontal_tolerance: float = 20.0,
+    max_pair_distance: float = 15.0,
+    pre_threshold: int = 250,
 ) -> List[Tuple[int, int, float, float, float]]:
     """Detect multiple ellipses (propellers) from accumulated frame.
 
     Process:
-    1. Normalize & threshold (Otsu)
+    1. Normalize & threshold (pre-threshold at 250, then Otsu)
     2. Morphological operations to clean noise
     3. Find ALL contours (not just largest)
     4. Fit ellipse to each valid contour
     5. Filter by orientation (keeps angles in [70, 110] degrees to match legacy)
     6. Sort by area and return top max_ellipses
+    7. Apply pair distance filter: if top 2 are >15px apart, keep only largest
 
     Args:
         accum_frame: Grayscale accumulated frame (h, w)
@@ -34,6 +37,7 @@ def propeller_mask_from_frame(
         min_area: Minimum contour area to consider
         max_area_frac: Maximum contour area as fraction of image size
         horizontal_tolerance: DEPRECATED - not used (kept for API compatibility)
+        max_pair_distance: Maximum distance between top 2 ellipses (pixels, default 15.0)
 
     Returns:
         List of (cx, cy, a, b, phi) for each detected propeller
@@ -51,8 +55,11 @@ def propeller_mask_from_frame(
 
     img8 = cv2.normalize(f, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
-    # Apply Otsu threshold directly (no pre-threshold needed)
-    _, mask = cv2.threshold(img8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Pre-threshold to filter noise (keeps only very bright pixels)
+    _, image_binary = cv2.threshold(img8, pre_threshold, 255, cv2.THRESH_BINARY)
+
+    # Apply Otsu threshold to pre-thresholded result
+    _, mask = cv2.threshold(image_binary, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Morphological operations to clean up noise
     kernel = np.ones((5, 5), np.uint8)
@@ -105,13 +112,33 @@ def propeller_mask_from_frame(
     if not candidates:
         return []
 
-    # Sort by area (largest first) and keep top max_ellipses
+    # Sort by area (largest first)
     candidates.sort(key=lambda t: t[5], reverse=True)
-    top_candidates = candidates[:max_ellipses]
+
+    # Apply pair distance filter (match legacy behavior)
+    # If top 2 candidates are far apart (>15px), only keep the largest
+    # This prevents detecting unrelated objects as second propeller
+    selected: List[Tuple[int, int, float, float, float, float]] = []
+
+    if len(candidates) == 1 or max_ellipses == 1:
+        selected = [candidates[0]]
+    else:
+        c0 = candidates[0]
+        c1 = candidates[1]
+        dx = c1[0] - c0[0]
+        dy = c1[1] - c0[1]
+        dist = np.sqrt(dx * dx + dy * dy)
+
+        if dist <= max_pair_distance:
+            # Close enough - keep both
+            selected = [c0, c1]
+        else:
+            # Too far apart - keep only largest
+            selected = [c0]
 
     # Return ellipse parameters (drop area)
     ellipses: List[Tuple[int, int, float, float, float]] = []
-    for (cx_i, cy_i, a, b, phi, _) in top_candidates:
+    for (cx_i, cy_i, a, b, phi, _) in selected:
         ellipses.append((cx_i, cy_i, a, b, phi))
 
     return ellipses
