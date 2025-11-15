@@ -99,9 +99,9 @@ async def download_file(
                                 if progress and task_id is not None:
                                     progress.update(task_id, advance=len(chunk))
 
-                        # Verify size
+                        # Verify size (skip if expected_size is 0)
                         actual_size = path.stat().st_size
-                        if actual_size != expected_size:
+                        if expected_size > 0 and actual_size != expected_size:
                             return False, f"Size mismatch after resume: {actual_size} != {expected_size}"
 
                         if progress and task_id is not None:
@@ -128,9 +128,9 @@ async def download_file(
                                 if progress and task_id is not None:
                                     progress.update(task_id, advance=len(chunk))
 
-                        # Verify size
+                        # Verify size (skip if expected_size is 0)
                         actual_size = path.stat().st_size
-                        if actual_size != expected_size:
+                        if expected_size > 0 and actual_size != expected_size:
                             return False, f"Size mismatch: {actual_size} != {expected_size}"
 
                         if progress and task_id is not None:
@@ -168,9 +168,9 @@ async def download_file(
                         progress.update(task_id, description=f"[red]✗ {dataset['name']}")
                     return False, error
 
-                # Verify size
+                # Verify size (skip if expected_size is 0 - manifest doesn't have sizes yet)
                 actual_size = path.stat().st_size
-                if actual_size != expected_size:
+                if expected_size > 0 and actual_size != expected_size:
                     if progress and task_id is not None:
                         progress.update(task_id, description=f"[red]✗ {dataset['name']}")
                     return False, f"Size mismatch: {actual_size} != {expected_size}"
