@@ -13,6 +13,22 @@
 set -euo pipefail
 
 DATA_DIR="evio/data"
+FORCE_FLAG=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force|-f)
+            FORCE_FLAG="--force"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: convert-all-legacy-to-hdf5 [--force]"
+            exit 1
+            ;;
+    esac
+done
 
 echo "=========================================="
 echo "  Convert All Legacy .dat to HDF5"
@@ -49,16 +65,16 @@ for DAT_FILE in $DAT_FILES; do
     STEM="${BASENAME%.dat}"
     OUTPUT="$DIR/${STEM}_legacy.h5"
 
-    # Check if already exists
-    if [ -f "$OUTPUT" ]; then
+    # Check if already exists (skip unless --force)
+    if [ -f "$OUTPUT" ] && [ -z "$FORCE_FLAG" ]; then
         echo "  ⚠️  Output exists: ${STEM}_legacy.h5"
         echo "  Skipping (use --force to overwrite)"
         echo ""
         continue
     fi
 
-    # Convert (use Python directly since we're already in nix develop)
-    if python scripts/convert_legacy_dat_to_hdf5.py "$DAT_FILE" "$OUTPUT" --width 1280 --height 720; then
+    # Convert (use uv run to handle import paths correctly)
+    if uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$DAT_FILE" "$OUTPUT" --width 1280 --height 720 $FORCE_FLAG; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
 
         # Get file size
