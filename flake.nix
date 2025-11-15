@@ -215,6 +215,12 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
           exec ${pkgs.uv}/bin/uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$@"
         '';
 
+        # Convert all legacy .dat to HDF5 script
+        convertAllLegacyToHdf5Script = pkgs.writeShellScriptBin "convert-all-legacy-to-hdf5" ''
+          set -euo pipefail
+          exec ${pkgs.bash}/bin/bash scripts/convert_all_legacy_to_hdf5.sh
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -228,6 +234,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             convertAllDatasetsScript # convert-all-datasets command
             unzipDatasetsScript     # unzip-datasets command
             convertLegacyDatToHdf5Script # convert-legacy-dat-to-hdf5 command
+            convertAllLegacyToHdf5Script # convert-all-legacy-to-hdf5 command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -294,7 +301,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  unzip-datasets              : Extract junction-sensofusion.zip"
             echo "  download-datasets           : Download from Google Drive (~1.4 GB)"
             echo "  convert-all-datasets        : Convert all .raw files to EVT3 .dat"
-            echo "  convert-legacy-dat-to-hdf5  : Convert legacy .dat to evlib HDF5"
+            echo "  convert-legacy-dat-to-hdf5  : Convert single legacy .dat to evlib HDF5"
+            echo "  convert-all-legacy-to-hdf5  : Convert ALL legacy .dat to evlib HDF5"
             echo ""
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"
