@@ -60,7 +60,7 @@ for DAT_FILE in $DAT_FILES; do
     BASENAME=$(basename "$DAT_FILE")
     echo "Converting: $BASENAME"
 
-    # Determine output path
+    # Determine output path (script will auto-generate <stem>_legacy.h5)
     DIR=$(dirname "$DAT_FILE")
     STEM="${BASENAME%.dat}"
     OUTPUT="$DIR/${STEM}_legacy.h5"
@@ -73,8 +73,8 @@ for DAT_FILE in $DAT_FILES; do
         continue
     fi
 
-    # Convert (use uv run to handle import paths correctly)
-    if uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$DAT_FILE" "$OUTPUT" --width 1280 --height 720 $FORCE_FLAG; then
+    # Convert (let script auto-generate output filename)
+    if uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$DAT_FILE" --width 1280 --height 720 $FORCE_FLAG; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
 
         # Get file size
