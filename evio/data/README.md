@@ -44,8 +44,10 @@ This will:
 
 For the Sensofusion Junction Hackathon:
 - Download dataset files from Sensofusion mentors at the venue
-- Or access Google Drive folder: https://drive.google.com/drive/folders/1DFGuRTnME-WM_r9b-ImqKToHhc1rrR3H
+- Or access Google Drive folder: https://drive.google.com/drive/folders/18ORzE9_aHABYqOHzVdL0GANk_eIMaSuE
 - Place files in the appropriate subdirectories
+
+**Note:** The hong_kong 3D dataset is not included (requires special permissions)
 
 ## File Formats
 

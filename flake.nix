@@ -42,13 +42,19 @@
           cd "$TEMP_DIR"
 
           ${pkgs.gdown}/bin/gdown --folder --fuzzy --remaining-ok \
-            "https://drive.google.com/drive/folders/1DFGuRTnME-WM_r9b-ImqKToHhc1rrR3H"
+            "https://drive.google.com/drive/folders/18ORzE9_aHABYqOHzVdL0GANk_eIMaSuE"
 
           echo ""
           echo "Organizing files into project structure..."
 
           # Navigate to the downloaded structure
-          cd "Junction Sensofusion/Event Camera Challenge"
+          # The new folder has a simpler structure
+          DOWNLOAD_DIR=$(find . -type d -name "*" -maxdepth 1 | head -n 1)
+          if [ -z "$DOWNLOAD_DIR" ]; then
+            echo "Error: Could not find downloaded folder"
+            exit 1
+          fi
+          cd "$DOWNLOAD_DIR"
 
           # Create target directories
           mkdir -p "$OLDPWD/evio/data/fan"
