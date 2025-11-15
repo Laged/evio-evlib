@@ -315,6 +315,10 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "🧪 Testing:"
             echo "  run-evlib-tests      : Compare evlib vs legacy loader"
             echo ""
+            echo "🎯 Detector Demos (legacy loaders):"
+            echo "  run-fan-detector     : Fan RPM estimation with ellipse fitting"
+            echo "  run-drone-detector   : Drone propeller detection and RPM"
+            echo ""
             echo "Demo Aliases:"
             echo "  run-demo-fan         : Play fan dataset (legacy loader)"
             echo "  run-demo-fan-ev3     : Play fan dataset (evlib on legacy HDF5 export)"
@@ -337,6 +341,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
             alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
             alias run-evlib-raw-player='uv run --package evlib-examples evlib-raw-player'
+            alias run-fan-detector='uv run --package evio python evio/scripts/fan_detector_demo.py evio/data/fan/fan_const_rpm.dat'
+            alias run-drone-detector='uv run --package evio python evio/scripts/drone_detector_demo.py evio/data/drone_idle/drone_idle.dat'
 
             echo "Read .claude/skills/dev-environment.md for workflow guidelines"
             echo "=========================================="
