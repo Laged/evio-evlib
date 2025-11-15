@@ -45,12 +45,25 @@ def parse_args() -> argparse.Namespace:
 
 def collect_stats(lazy_events: pl.LazyFrame) -> dict[str, int]:
     """Fetch aggregate statistics from the LazyFrame."""
+    # Get schema to check timestamp dtype
+    schema = lazy_events.collect_schema()
+    t_dtype = schema["t"]
+
+    # Handle both Duration and Int64 timestamp types
+    if isinstance(t_dtype, pl.Duration):
+        # Duration type - convert to microseconds
+        t_min_expr = pl.col("t").dt.total_microseconds().min()
+        t_max_expr = pl.col("t").dt.total_microseconds().max()
+    else:
+        # Integer type (Int64/Int32) - use directly
+        t_min_expr = pl.col("t").min()
+        t_max_expr = pl.col("t").max()
+
     stats = (
         lazy_events.select(
             pl.len().alias("events"),
-            # Convert duration to microseconds (int64)
-            pl.col("t").dt.total_microseconds().min().alias("t_min"),
-            pl.col("t").dt.total_microseconds().max().alias("t_max"),
+            t_min_expr.alias("t_min"),
+            t_max_expr.alias("t_max"),
             pl.col("x").min().alias("x_min"),
             pl.col("x").max().alias("x_max"),
             pl.col("y").min().alias("y_min"),
@@ -67,8 +80,8 @@ def fetch_sample(lazy_events: pl.LazyFrame, rows: int) -> Optional[pl.DataFrame]
     """Fetch a limited number of rows to ensure parsing works."""
     if rows <= 0:
         return None
-    # Collect and return first N rows
-    return lazy_events.collect().head(rows)
+    # Use limit() to only scan the requested rows (avoids loading entire dataset)
+    return lazy_events.limit(rows).collect()
 
 
 def verify_file(path: Path, sample_rows: int) -> VerificationResult:
