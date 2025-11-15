@@ -3,12 +3,15 @@
 
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
 import cv2
 import numpy as np
+import time
+import evlib
+import polars as pl
 
 
 class AppMode(Enum):
@@ -26,6 +29,31 @@ class Dataset:
     size_mb: float
 
 
+@dataclass
+class PlaybackState:
+    """Playback session state."""
+    dataset: Dataset
+    lazy_events: pl.LazyFrame  # CRITICAL: Lazy, not collected!
+    width: int
+    height: int
+    t_min: int
+    t_max: int
+    current_t: int
+    detector_type: str = "none"
+    window_us: int = 10_000  # 10ms window
+    speed: float = 1.0
+    overlay_flags: Dict[str, bool] = None
+    prev_fan_params: Optional[Tuple[int, int, float, float, float]] = None
+
+    def __post_init__(self):
+        if self.overlay_flags is None:
+            self.overlay_flags = {
+                "detector": True,
+                "hud": True,
+                "help": False,
+            }
+
+
 class MVPLauncher:
     """Main launcher application."""
 
@@ -34,6 +62,7 @@ class MVPLauncher:
         self.datasets: List[Dataset] = []
         self.selected_index = 0
         self.window_name = "Event Camera Demo"
+        self.playback_state: Optional[PlaybackState] = None
 
         # Print banner
         print("=" * 60)
@@ -107,6 +136,66 @@ class MVPLauncher:
         # Sort by category then name
         datasets.sort(key=lambda d: (d.category, d.name))
         return datasets
+
+    def _init_playback(self, dataset: Dataset) -> PlaybackState:
+        """Load dataset and prepare playback state using LAZY windowing."""
+        print(f"Loading {dataset.path}...")
+
+        try:
+            # CRITICAL: DON'T collect() here - keep lazy!
+            lazy_events = evlib.load_events(str(dataset.path))
+
+            # Only collect metadata needed for initialization
+            # Use SQL-style aggregation - this is more efficient than collecting everything
+            metadata = lazy_events.select([
+                pl.col("x").max().alias("max_x"),
+                pl.col("y").max().alias("max_y"),
+                pl.col("t").min().alias("t_min"),
+                pl.col("t").max().alias("t_max"),
+            ]).collect()
+
+            width = int(metadata["max_x"][0]) + 1
+            height = int(metadata["max_y"][0]) + 1
+
+            # Get time range (handle Duration vs Int64 vs timedelta)
+            import datetime
+            t_min_val = metadata["t_min"][0]
+            t_max_val = metadata["t_max"][0]
+
+            if isinstance(t_min_val, datetime.timedelta):
+                # Python timedelta object
+                t_min = int(t_min_val.total_seconds() * 1e6)
+                t_max = int(t_max_val.total_seconds() * 1e6)
+            elif isinstance(t_min_val, pl.Duration):
+                # Polars Duration
+                t_min = int(t_min_val.total_microseconds())
+                t_max = int(t_max_val.total_microseconds())
+            else:
+                # Direct integer
+                t_min = int(t_min_val)
+                t_max = int(t_max_val)
+
+            print(f"Resolution: {width}x{height}, "
+                  f"Duration: {(t_max - t_min) / 1e6:.2f}s")
+
+            # Determine detector type (will be implemented in Phase 3)
+            detector_type = "none"  # TODO: Add _map_detector_type in Task 7
+            print(f"Detector: {detector_type}")
+
+            return PlaybackState(
+                dataset=dataset,
+                lazy_events=lazy_events,  # Store lazy reference, NOT collected!
+                width=width,
+                height=height,
+                t_min=t_min,
+                t_max=t_max,
+                current_t=t_min,
+                detector_type=detector_type,
+            )
+
+        except Exception as e:
+            print(f"Error loading dataset: {e}", file=sys.stderr)
+            raise
 
     def run(self) -> None:
         """Main application loop."""
@@ -245,15 +334,29 @@ class MVPLauncher:
             if self.datasets:
                 selected_dataset = self.datasets[self.selected_index]
                 print(f"\nSelected: {selected_dataset.name}")
-                # TODO: Transition to playback in Task 4
-                print("Playback not yet implemented - staying in menu")
+                try:
+                    self.playback_state = self._init_playback(selected_dataset)
+                    self.mode = AppMode.PLAYBACK
+                except Exception as e:
+                    error_msg = f"Failed to load dataset: {str(e)}"
+                    print(error_msg, file=sys.stderr)
+                    # Stay in menu mode on error
 
         return True
 
     def _playback_loop(self) -> bool:
         """Playback mode loop. Returns False to exit app."""
-        # TODO: Implement in Phase 2
-        return False
+        if self.playback_state is None:
+            self.mode = AppMode.MENU
+            return True
+
+        # TODO: Implement in Task 5 (Phase 2)
+        # For now, just return to menu to prove init worked
+        print("\nPlayback initialized successfully!")
+        print("Returning to menu (full playback in Task 5)...")
+        self.mode = AppMode.MENU
+        self.playback_state = None
+        return True
 
 
 def main() -> None:
