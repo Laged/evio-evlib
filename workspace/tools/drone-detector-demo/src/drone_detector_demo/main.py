@@ -140,14 +140,12 @@ def main() -> None:
         if args.debug and processed_count < 5:
             print(f"\n=== Frame {processed_count} (t={win_start}-{win_end} us) ===")
 
-        # Lower pre_threshold to 50 (out of 255) to detect low-intensity propellers
-        # Default 250 was too high for drone_idle dataset
-        # Also lower min_area to 100 (from 145) to accept smaller contours
+        # Match original detection parameters (verified against example-drone-original.py)
         ellipses = propeller_mask_from_frame(
             frame_accum,
             max_ellipses=args.max_ellipses,
-            pre_threshold=50,  # Much lower than default 250
-            min_area=100.0,  # Lower than default 145
+            pre_threshold=250,  # Original line 192: top 2% intensity only
+            min_area=145.0,     # Original line 171: minimum contour size
             debug=args.debug and processed_count < 5,
         )
 

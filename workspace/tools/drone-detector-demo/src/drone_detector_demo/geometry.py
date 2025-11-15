@@ -19,7 +19,7 @@ def propeller_mask_from_frame(
     horizontal_tolerance: float = 20.0,
     max_pair_distance: float = 15.0,
     pre_threshold: int = 250,
-    hot_pixel_threshold: float = 10000.0,
+    hot_pixel_threshold: float = float('inf'),  # Match original: no hot pixel filtering
     debug: bool = False,
 ) -> List[Tuple[int, int, float, float, float]]:
     """Detect multiple ellipses (propellers) from accumulated frame.
@@ -146,8 +146,8 @@ def propeller_mask_from_frame(
 
     for idx, cnt in enumerate(contours):
         # fitEllipse needs at least 5 points
-        # Use 30 points as minimum (lowered from 50) to handle smaller propellers
-        if len(cnt) < 30:
+        # Use 50 points minimum (match original line 212 for accuracy)
+        if len(cnt) < 50:
             rejected_counts["too_few_points"] += 1
             continue
 
