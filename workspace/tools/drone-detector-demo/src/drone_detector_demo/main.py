@@ -69,6 +69,12 @@ def main() -> None:
         default=2,
         help="Maximum number of propellers to detect (default: 2)",
     )
+    parser.add_argument(
+        "--skip-seconds",
+        type=float,
+        default=0.0,
+        help="Skip first N seconds of recording (useful for finding drone)",
+    )
     args = parser.parse_args()
 
     print(f"Loading {args.h5} with evlib...")
@@ -78,13 +84,23 @@ def main() -> None:
     t_min, t_max = get_timestamp_range(events)
     window_us = int(args.window_ms * 1000)
 
+    # Apply skip offset
+    skip_us = int(args.skip_seconds * 1e6)
+    t_min += skip_us
+    if t_min >= t_max:
+        print(f"Error: skip_seconds ({args.skip_seconds}s) exceeds recording duration")
+        return
+
     # PASS 1: Collect multi-ellipse geometry (coarse windows)
     print(f"\nPass 1: Collecting geometry ({args.window_ms}ms windows)...")
+    if args.skip_seconds > 0:
+        print(f"Skipping first {args.skip_seconds}s of recording")
     ell_times = []
     ell_ellipses_per_window: List[List[Tuple[int, int, float, float, float]]] = []
 
     current_time = t_min
     frame_count = 0
+    processed_count = 0  # Track how many frames we actually processed (vs. detected)
 
     while current_time < t_max:
         if args.max_frames > 0 and frame_count >= args.max_frames:
@@ -109,8 +125,23 @@ def main() -> None:
         # Build frame
         frame_accum = build_accum_frame_evlib(window_events, width, height)
 
-        # Detect multiple ellipses (propellers)
-        ellipses = propeller_mask_from_frame(frame_accum, max_ellipses=args.max_ellipses)
+        # Detect multiple ellipses (propellers) - enable debug for first 5 frames
+        debug_enabled = processed_count < 5
+        if debug_enabled:
+            print(f"\n=== Frame {processed_count} (t={win_start}-{win_end} us) ===")
+
+        # Lower pre_threshold to 50 (out of 255) to detect low-intensity propellers
+        # Default 250 was too high for drone_idle dataset
+        # Also lower min_area to 100 (from 145) to accept smaller contours
+        ellipses = propeller_mask_from_frame(
+            frame_accum,
+            max_ellipses=args.max_ellipses,
+            pre_threshold=50,  # Much lower than default 250
+            min_area=100.0,  # Lower than default 145
+            debug=debug_enabled,
+        )
+
+        processed_count += 1
 
         if not ellipses:
             # Skip frames where we didn't detect propellers
@@ -145,13 +176,16 @@ def main() -> None:
     cv2.destroyAllWindows()
 
     if not ell_times:
-        print("No geometry collected. Exiting.")
+        print(f"\nNo geometry collected. Exiting.")
+        print(f"Processed {processed_count} frames, detected 0 propellers.")
+        print(f"Check debug output above to see why detection failed.")
         return
 
     # Convert to arrays
     ell_times_arr = np.array(ell_times)
 
-    print(f"Pass 1 complete: {len(ell_times)} frames with propellers detected")
+    print(f"\nPass 1 complete: {len(ell_times)} frames with propellers detected (out of {processed_count} processed)")
+    print(f"  Detection rate: {len(ell_times)/processed_count*100:.1f}%")
     print(f"  Average propellers per frame: {np.mean([len(e) for e in ell_ellipses_per_window]):.1f}")
 
     # PASS 2: Per-propeller blade tracking (fine windows)
