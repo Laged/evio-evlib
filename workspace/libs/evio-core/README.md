@@ -19,11 +19,6 @@ nix develop --command uv run --package evio-core pytest workspace/libs/evio-core
 
 ### Run Specific Test Suites
 
-**Conversion fidelity tests** (.raw vs _evt3.dat):
-```bash
-nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py::test_evlib_vs_legacy_stats -v
-```
-
 **Legacy parity tests** (legacy loader vs evlib):
 ```bash
 nix develop --command uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py::test_legacy_loader_vs_evlib_parity -v
@@ -35,13 +30,6 @@ nix develop --command uv run --package evio-core pytest workspace/libs/evio-core
 ```
 
 ## Test Architecture
-
-### Conversion Fidelity Tests
-
-Validate `.raw → _evt3.dat` conversion preserves data:
-- Load .raw with evlib
-- Load _evt3.dat with evlib
-- Compare stats (should be identical)
 
 ### Legacy Parity Tests
 

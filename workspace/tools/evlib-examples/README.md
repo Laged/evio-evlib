@@ -1,6 +1,16 @@
 # evlib-examples
 
-Minimal sandbox for experimenting with evlib on the standalone `.raw` datasets.
+Experimental tools for exploring EVT3 .raw files from IDS cameras using evlib.
+
+⚠️ **IMPORTANT:** These tools operate on .raw files which are SEPARATE recordings
+from the legacy Sensofusion .dat files in the repository.
+
+**For legacy data work:** Use `convert-legacy-dat-to-hdf5` instead.
+
+**This package is for:**
+- IDS camera data experimentation
+- evlib performance testing
+- Raw EVT3 format exploration
 
 ## Quick start
 
