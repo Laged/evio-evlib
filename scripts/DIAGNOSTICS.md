@@ -33,3 +33,7 @@ nix develop --command uv run python scripts/diagnose_fan_data.py
 ```
 
 See `docs/plans/raw-to-evt3-deprecation.md` for complete analysis.
+
+### convert_evt3_raw_to_dat.py
+Deprecated but kept in scripts/ for compatibility.
+Marked with runtime warnings. See flake.nix for shell command.
