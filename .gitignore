@@ -45,6 +45,7 @@ result-*
 
 # Data files (large)
 *.dat
+*.raw
 *.aedat
 *.h5
 
