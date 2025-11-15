@@ -346,7 +346,7 @@ async def get_confirmation_token(session: aiohttp.ClientSession, file_id: str) -
     return None
 ```
 
-**Download with Token:**
+**Download with Token and Cookie Preservation:**
 ```python
 async def download_with_confirmation(
     session: aiohttp.ClientSession,
@@ -354,40 +354,94 @@ async def download_with_confirmation(
     path: Path,
     progress_callback
 ) -> Tuple[bool, str]:
-    """Download file, handling confirmation if needed."""
+    """
+    Download file, handling Drive confirmation tokens and cookies.
+
+    Google Drive large files (>100MB) require:
+    1. Confirmation token (extracted from HTML page)
+    2. download_warning cookie (set by that HTML response)
+
+    Both must be present in the final download request.
+    The aiohttp.ClientSession automatically preserves cookies.
+    """
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-    # Check if confirmation needed
-    if await needs_confirmation(session, file_id):
-        token = await get_confirmation_token(session, file_id)
-        if token:
-            url = f"{url}&confirm={token}"
-        else:
-            return False, "Could not extract confirmation token"
+    # Step 1: Check if confirmation needed
+    async with session.head(url, allow_redirects=True) as resp:
+        needs_confirm = "confirm=" in str(resp.url) or \
+                       "download_warning" in resp.headers.get("content-disposition", "")
 
-    # Stream download
+    if not needs_confirm:
+        # Small file, direct download
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return False, f"HTTP {resp.status}: {resp.reason}"
+
+            async with aiofiles.open(path, 'wb') as f:
+                async for chunk in resp.content.iter_chunked(1 << 20):
+                    await f.write(chunk)
+                    if progress_callback:
+                        progress_callback(len(chunk))
+        return True, ""
+
+    # Step 2: Fetch confirmation page to get token AND cookie
     async with session.get(url) as resp:
+        html = await resp.text()
+
+        # Extract confirmation token from HTML
+        token = None
+        for pattern in [
+            r'confirm=([^&"\']+)',
+            r'download\?id=.*&confirm=([^&"\']+)',
+            r'id="download-form".*?action=".*?confirm=([^&"\']+)',
+        ]:
+            match = re.search(pattern, html)
+            if match:
+                token = match.group(1)
+                break
+
+        if not token:
+            return False, "Could not extract confirmation token from Drive page"
+
+        # CRITICAL: Session now has download_warning cookie from this response
+        # aiohttp.ClientSession automatically preserves cookies for the domain
+
+    # Step 3: Download with token (cookie automatically included by session)
+    download_url = f"{url}&confirm={token}"
+
+    async with session.get(download_url) as resp:
         if resp.status != 200:
             return False, f"HTTP {resp.status}: {resp.reason}"
 
-        total = int(resp.headers.get('content-length', 0))
-        downloaded = 0
+        # Verify we got file, not HTML error page
+        content_type = resp.headers.get('content-type', '')
+        if 'text/html' in content_type:
+            # Still got HTML - token/cookie didn't work
+            snippet = (await resp.text())[:200]
+            return False, f"Got HTML instead of file. Response: {snippet}..."
 
+        # Stream download
         async with aiofiles.open(path, 'wb') as f:
             async for chunk in resp.content.iter_chunked(1 << 20):  # 1MB chunks
                 await f.write(chunk)
-                downloaded += len(chunk)
                 if progress_callback:
                     progress_callback(len(chunk))
 
     return True, ""
 ```
 
+**Key Points:**
+- **aiohttp.ClientSession maintains cookie jar automatically** - Cookies set by Drive HTML page persist for domain
+- **Fetch HTML page first** - Sets `download_warning` cookie in session
+- **Extract token** - Parse from HTML using multiple patterns
+- **Download with both** - Token in URL, cookie in session headers (automatic)
+- **Verify content-type** - Detect if we still got HTML instead of file bytes (failure case)
+
 ### 4.3 Resume Logic
 
 **File:** `src/downloader/download.py`
 
-**Strategy:** HTTP Range requests for partial resume
+**Strategy:** HTTP Range requests with automatic fallback
 
 ```python
 async def download_file_resumable(
@@ -397,82 +451,160 @@ async def download_file_resumable(
     progress: Progress,
     task_id: int
 ) -> Tuple[bool, str]:
-    """Download file with resume support."""
+    """
+    Download file with resume support and fallback.
+
+    Strategy:
+    1. If file complete → skip
+    2. If partial file exists → try Range request
+    3. If Range fails (206 not supported) → delete partial, full download
+    4. If full download fails → error
+    """
     path = Path(dataset['path'])
     file_id = dataset['id']
     expected_size = dataset['size']
 
     # Check existing file
+    resume_from = 0
     if path.exists():
         actual_size = path.stat().st_size
 
         if actual_size == expected_size:
             # Complete - skip
-            progress.update(task_id, description=f"[green]✓ {dataset['name']} (skipped)")
+            progress.update(task_id, description=f"[green]✓ {dataset['name']} (already present)")
+            progress.update(task_id, completed=expected_size)
             return True, ""
 
         elif actual_size < expected_size:
-            # Partial - resume
+            # Partial - try resume
             resume_from = actual_size
             progress.update(task_id, completed=actual_size)
+            progress.update(task_id, description=f"[yellow]↻ {dataset['name']} (resuming from {actual_size / 1024 / 1024:.1f} MB)")
         else:
-            # Larger than expected - corrupt, remove
+            # Larger than expected - corrupt
             path.unlink()
             resume_from = 0
-    else:
-        resume_from = 0
 
     # Create parent directories
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Build URL with confirmation if needed
+    # Build URL with Drive confirmation handling
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
     if await needs_confirmation(session, file_id):
         token = await get_confirmation_token(session, file_id)
         if token:
             url = f"{url}&confirm={token}"
-
-    # Download with Range header
-    headers = {}
-    if resume_from > 0:
-        headers['Range'] = f'bytes={resume_from}-'
-        mode = 'ab'  # Append mode
-    else:
-        mode = 'wb'  # Write mode
+        else:
+            return False, "Could not get confirmation token"
 
     async with semaphore:
         try:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status not in (200, 206):  # 206 = Partial Content
-                    return False, f"HTTP {resp.status}"
+            # Attempt 1: Resume with Range header (if partial file)
+            if resume_from > 0:
+                headers = {'Range': f'bytes={resume_from}-'}
+                mode = 'ab'  # Append mode
 
-                async with aiofiles.open(path, mode) as f:
-                    async for chunk in resp.content.iter_chunked(1 << 20):
-                        await f.write(chunk)
-                        progress.update(task_id, advance=len(chunk))
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 206:
+                        # Server supports Range - resume from offset
+                        progress.update(task_id, description=f"[yellow]↓ {dataset['name']} (resuming)")
 
-            # Verify final size
-            actual_size = path.stat().st_size
-            if actual_size != expected_size:
-                return False, f"Size mismatch: {actual_size} != {expected_size}"
+                        async with aiofiles.open(path, mode) as f:
+                            async for chunk in resp.content.iter_chunked(1 << 20):
+                                await f.write(chunk)
+                                progress.update(task_id, advance=len(chunk))
 
-            progress.update(task_id, description=f"[green]✓ {dataset['name']}")
-            return True, ""
+                        # Verify size
+                        actual_size = path.stat().st_size
+                        if actual_size != expected_size:
+                            return False, f"Size mismatch after resume: {actual_size} != {expected_size}"
+
+                        progress.update(task_id, description=f"[green]✓ {dataset['name']}")
+                        return True, ""
+
+                    elif resp.status == 200:
+                        # Server doesn't support Range, sent full file
+                        # FALLBACK: Delete partial, accept full download
+                        progress.update(task_id, description=f"[yellow]↓ {dataset['name']} (Range not supported, restarting)")
+                        path.unlink()  # Delete partial
+                        resume_from = 0
+                        progress.update(task_id, completed=0)  # Reset progress
+
+                        # Download full file from this response
+                        async with aiofiles.open(path, 'wb') as f:
+                            async for chunk in resp.content.iter_chunked(1 << 20):
+                                await f.write(chunk)
+                                progress.update(task_id, advance=len(chunk))
+
+                        # Verify size
+                        actual_size = path.stat().st_size
+                        if actual_size != expected_size:
+                            return False, f"Size mismatch: {actual_size} != {expected_size}"
+
+                        progress.update(task_id, description=f"[green]✓ {dataset['name']}")
+                        return True, ""
+
+                    else:
+                        # Unexpected status - fall through to full download
+                        progress.update(task_id, description=f"[yellow]↓ {dataset['name']} (Range failed, restarting)")
+                        path.unlink()
+                        resume_from = 0
+                        progress.update(task_id, completed=0)
+
+            # Attempt 2: Full download (no Range header)
+            if resume_from == 0:
+                progress.update(task_id, description=f"[yellow]↓ {dataset['name']}")
+
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        return False, f"HTTP {resp.status}: {resp.reason}"
+
+                    # Verify content-type (detect HTML error pages)
+                    content_type = resp.headers.get('content-type', '')
+                    if 'text/html' in content_type:
+                        snippet = (await resp.text())[:200]
+                        return False, f"Got HTML instead of file: {snippet}..."
+
+                    async with aiofiles.open(path, 'wb') as f:
+                        async for chunk in resp.content.iter_chunked(1 << 20):
+                            await f.write(chunk)
+                            progress.update(task_id, advance=len(chunk))
+
+                # Verify size
+                actual_size = path.stat().st_size
+                if actual_size != expected_size:
+                    return False, f"Size mismatch: {actual_size} != {expected_size}"
+
+                progress.update(task_id, description=f"[green]✓ {dataset['name']}")
+                return True, ""
 
         except Exception as e:
-            return False, str(e)
+            # Clean up partial file on exception
+            if path.exists():
+                path.unlink()
+            return False, f"Download failed: {str(e)}"
+
+    return False, "Unexpected code path"
+```
+
+**Resume Flow:**
+```
+Partial file exists (500 MB of 1 GB)
+  ↓
+Try Range request with bytes=500000000-
+  ↓
+├─ 206 Partial Content → Resume from 500 MB ✓
+├─ 200 OK → Delete partial, download full file from this response ✓
+└─ 416/Other → Delete partial, retry full download ✓
 ```
 
 **Benefits:**
-- Resume from byte offset (save bandwidth)
-- Handle interruptions gracefully
-- Verify size on completion
+- Resume from byte offset when server supports it (save bandwidth)
+- Automatic fallback when Range not supported (avoid stuck state)
+- Clean up partial files on errors (prevent corruption)
+- Multiple fallback paths (robust recovery)
 - Skip already-complete files
-
-**Limitations:**
-- Google Drive Range support is unreliable for some files
-- Fallback to full re-download if Range fails
 
 ### 4.4 Progress Tracker
 
@@ -697,21 +829,51 @@ async def verify_checksum(dataset: Dict) -> Tuple[bool, str]:
 
 ## 8. Integration
 
-### 8.1 flake.nix Changes
+### 8.1 Workspace and Flake Integration
 
-**Add workspace/tools to UV workspace (already in root pyproject.toml):**
-```nix
-# No changes needed - UV discovers workspace/tools/* automatically
+**Step 1: Update root pyproject.toml to include tools directory**
+
+**File:** `pyproject.toml` (repo root)
+
+**Add to workspace members:**
+```toml
+[tool.uv.workspace]
+members = [
+    "evio",
+    "workspace/libs/*",
+    "workspace/plugins/*",
+    "workspace/apps/*",
+    "workspace/tools/*",    # ADD THIS LINE
+]
 ```
 
-**Update shell alias:**
+**Step 2: Regenerate lockfile**
+
+```bash
+uv lock
+```
+
+**Expected:** `uv.lock` updated with downloader package dependencies (aiohttp, rich, aiofiles).
+
+**Step 3: Verify package discovery**
+
+```bash
+uv run --package downloader download-datasets --help
+```
+
+**Expected:** Shows help text (package discovered successfully).
+
+**Step 4: Update flake.nix shell alias**
+
+**File:** `flake.nix`
+
+**Replace old shell script with new alias:**
 ```nix
-# Replace old shell script with new alias
+# Replace old download-datasets shell script (lines 15-197) with:
 alias download-datasets='uv run --package downloader download-datasets'
 ```
 
-**Remove old download script:**
-- Delete lines 15-197 (old shell-based implementation)
+**Remove:** Old shell-based download script (lines 15-197)
 
 ### 8.2 Documentation Updates
 
