@@ -291,6 +291,9 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"
             echo ""
+            echo "🧪 Testing:"
+            echo "  run-evlib-tests      : Compare evlib vs legacy loader"
+            echo ""
             echo "Demo Aliases:"
             echo "  run-demo-fan         : Play fan dataset"
             echo "  run-mvp-1            : MVP 1 - Event density"
@@ -299,6 +302,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
 
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
+            alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'

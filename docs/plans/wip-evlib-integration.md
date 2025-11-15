@@ -45,13 +45,57 @@
 
 1. **Update main documentation**
    - Add conversion workflow to `docs/evlib-integration.md`
-   - Update `docs/data/evio-data-format.md` with EVT3 conversion section
-   - Update `docs/setup.md` with quickstart commands
+   - Update `docs/data/evio-data-format.md` with EVT3 conversion section (WIP)
+   - Update `docs/setup.md` with quickstart commands (WIP)
 
 2. **Future considerations**
    - Distribution: Converted `.dat` files could be added to future ZIP releases
    - Benchmarking: Compare `.raw` vs `.dat` ingestion performance with evlib
    - OpenEB: If advanced features needed later (bias tuning, visualization), revisit packaging
+
+---
+
+## 5. Next Actions – evlib-first Data Path
+
+### 5.1 Favor evlib over legacy `evio.core.recording`
+- `docs/architecture.md` positions evlib as the canonical ingestion/representation layer; now that datasets are EVT3-compliant, transition away from the bespoke `.dat` parser.
+- Update `workspace/libs/evio-core/src/evio_core/loaders.py` to wrap `evlib.load_events()` everywhere we currently call the legacy loader. Retain the old path only for non-compliant archives (documented in `docs/data/evio-data-format.md`).
+- Ensure plugins reference the evlib-backed adapters so we leverage Polars LazyFrames + format auto-detection.
+
+### 5.2 Package evlib through Nix-aware workflow
+- **Observation:** evlib is shipped as a PyPI wheel that compiles via PyO3; with `flake.nix` already providing Rust, OpenCV, pkg-config, no extra derivation is required. Contributors just run `nix develop && uv sync`.
+- **Contingency plan:** document in this WIP file how to add a custom derivation if we ever need to pin evlib’s source: use `pkgs.rustPlatform.buildRustPackage` to build the wheel and expose it via a local index. Capture the steps here for future reference.
+- **Doc update:** add a short “Nix readiness checklist” to `docs/evlib-integration.md` reminding developers that `nix develop` must succeed before `uv run --package evio-verifier ...`.
+
+### 5.3 Minimal PoC test before full migration ✅
+
+**Status:** Complete
+
+**Test Location:** `workspace/libs/evio-core/tests/test_evlib_comparison.py`
+
+**Run Command:**
+```bash
+run-evlib-tests
+```
+
+**What it tests:**
+- Loads fan_const_rpm and drone_idle with both legacy (.raw via legacy loader) and evlib (_evt3.dat) loaders
+- Compares event counts (exact match required)
+- Compares timestamp/spatial ranges (0.01% tolerance)
+- Compares polarity distribution (exact match required)
+
+**Important:** The test now compares:
+- Legacy loader: `.raw` files (original EVT3 format)
+- evlib loader: `_evt3.dat` files (converted with preserved headers)
+
+**Test Results:** [To be filled after first successful run]
+
+**Next Steps:** See section 5.4 for roll-out plan.
+
+### 5.4 Roll-out plan
+1. Land the PoC test and publish results in this doc.
+2. Update `COPYING` or README notes to highlight the evlib dependency so downstream teams know about the Rust requirement.
+3. Stage the actual replacement (PRs in evio-core, plugins) once the PoC passes; track progress in this WIP file until complete.
 
 ## 3. Usage Commands
 
@@ -66,6 +110,9 @@ convert-all-datasets
 
 # Verify a converted file
 uv run --package evio-verifier verify-dat evio/data/fan/fan_const_rpm_evt3.dat
+
+# Run comparison tests (evlib vs legacy)
+run-evlib-tests
 
 # Or convert a single file
 convert-evt3-raw-to-dat evio/data/fan/fan_const_rpm.raw
