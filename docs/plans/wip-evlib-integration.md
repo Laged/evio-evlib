@@ -132,6 +132,12 @@ uv run --package evio-verifier verify-dat evio/data/fan/fan_const_rpm_evt3.dat
 # Run comparison tests (evlib vs legacy)
 run-evlib-tests
 
+# Explore IDS .raw datasets with evlib sandbox
+run-evlib-raw-demo evio/data/fan/fan_const_rpm.raw --duration-ms 25 --limit-events 100000 --output tmp/fan_raw.png
+
+# Real-time raw playback (evlib-only)
+run-evlib-raw-player evio/data/fan/fan_const_rpm.raw --window 5 --speed 1.0
+
 # Or convert a single file
 convert-evt3-raw-to-dat evio/data/fan/fan_const_rpm.raw
 ```

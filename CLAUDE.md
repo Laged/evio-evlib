@@ -1,0 +1,1 @@
+- Review all @docs/ and @.claude/ and @flake.nix - remember to ALWAYS use the nix-provided uv/python environment and run the scripts via nix develop --command to have proper access to all the correct packages. If something does not work the correct solutions is to update flake.nix so it works rather than using custom paths or installs.
