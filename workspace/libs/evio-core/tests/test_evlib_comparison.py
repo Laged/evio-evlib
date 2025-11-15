@@ -11,6 +11,20 @@ import polars as pl
 import evlib
 
 
+# Dataset availability check
+def dataset_exists(raw_path: str, dat_path: str) -> bool:
+    """Check if both .raw and _evt3.dat files exist."""
+    return Path(raw_path).exists() and Path(dat_path).exists()
+
+
+DATASETS_AVAILABLE = (
+    dataset_exists("evio/data/fan/fan_const_rpm.raw",
+                   "evio/data/fan/fan_const_rpm_evt3.dat") and
+    dataset_exists("evio/data/drone_idle/drone_idle.raw",
+                   "evio/data/drone_idle/drone_idle_evt3.dat")
+)
+
+
 def decode_legacy_events(event_words: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Decode packed uint32 event_words into x, y, polarity arrays.
 
@@ -100,7 +114,7 @@ def compute_evlib_stats(dat_path: Path) -> dict[str, int]:
         pl.col("x").max().alias("x_max"),
         pl.col("y").min().alias("y_min"),
         pl.col("y").max().alias("y_max"),
-        (pl.col("polarity") == -1).sum().alias("p_count_0"),
+        (pl.col("polarity") == 0).sum().alias("p_count_0"),
         (pl.col("polarity") == 1).sum().alias("p_count_1"),
     ]).collect().to_dicts()[0]
 
@@ -245,3 +259,78 @@ def test_assert_within_tolerance_zero():
 
     with pytest.raises(AssertionError):
         assert_within_tolerance(0, 1, 0.0001, "zero_fail")
+
+
+@pytest.mark.skipif(
+    not DATASETS_AVAILABLE,
+    reason="Datasets not found. Run 'unzip-datasets' and 'convert-all-datasets' first."
+)
+@pytest.mark.parametrize("dataset_name,raw_path,dat_path,width,height", [
+    (
+        "fan_const_rpm",
+        "evio/data/fan/fan_const_rpm.raw",
+        "evio/data/fan/fan_const_rpm_evt3.dat",
+        1280,
+        720,
+    ),
+    (
+        "drone_idle",
+        "evio/data/drone_idle/drone_idle.raw",
+        "evio/data/drone_idle/drone_idle_evt3.dat",
+        1280,
+        720,
+    ),
+])
+def test_evlib_vs_legacy_stats(
+    dataset_name: str,
+    raw_path: str,
+    dat_path: str,
+    width: int,
+    height: int,
+):
+    """Validates EVT3 .dat conversion preserves data by comparing .raw vs converted .dat using evlib.
+
+    This test loads the same data in two formats (.raw and _evt3.dat) using evlib for both,
+    and verifies they contain identical events. The files should have the same size and data.
+    """
+    # Load .raw file with evlib
+    raw_stats = compute_evlib_stats(Path(raw_path))
+
+    # Load _evt3.dat file with evlib
+    dat_stats = compute_evlib_stats(Path(dat_path))
+
+    # Assert exact match on all stats - these should be identical
+    assert raw_stats['event_count'] == dat_stats['event_count'], \
+        f"{dataset_name}: Event count mismatch"
+
+    assert raw_stats['p_count_0'] == dat_stats['p_count_0'], \
+        f"{dataset_name}: Polarity 0 count mismatch"
+
+    assert raw_stats['p_count_1'] == dat_stats['p_count_1'], \
+        f"{dataset_name}: Polarity 1 count mismatch"
+
+    assert raw_stats['t_min'] == dat_stats['t_min'], \
+        f"{dataset_name}: t_min mismatch"
+
+    assert raw_stats['t_max'] == dat_stats['t_max'], \
+        f"{dataset_name}: t_max mismatch"
+
+    assert raw_stats['x_min'] == dat_stats['x_min'], \
+        f"{dataset_name}: x_min mismatch"
+
+    assert raw_stats['x_max'] == dat_stats['x_max'], \
+        f"{dataset_name}: x_max mismatch"
+
+    assert raw_stats['y_min'] == dat_stats['y_min'], \
+        f"{dataset_name}: y_min mismatch"
+
+    assert raw_stats['y_max'] == dat_stats['y_max'], \
+        f"{dataset_name}: y_max mismatch"
+
+    # Print summary for visibility
+    print(f"\n{dataset_name} comparison:")
+    print(f"  Events: {dat_stats['event_count']:,}")
+    print(f"  Time range: {dat_stats['t_min']} → {dat_stats['t_max']}")
+    print(f"  X range: {dat_stats['x_min']} → {dat_stats['x_max']}")
+    print(f"  Y range: {dat_stats['y_min']} → {dat_stats['y_max']}")
+    print(f"  Polarity: 0={dat_stats['p_count_0']:,}, 1={dat_stats['p_count_1']:,}")
