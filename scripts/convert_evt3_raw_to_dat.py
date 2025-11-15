@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATION WARNING ⚠️
+
+This script operates on IDS camera .raw files (Nov 2025) which are SEPARATE recordings
+from the legacy Sensofusion .dat files. They cannot be used for legacy parity testing.
+
+For legacy data export, use: scripts/convert_legacy_dat_to_hdf5.py
+
+This tool is preserved for IDS-specific experimentation only.
+
+---
+
 Convert EVT3 .raw files to .dat format while patching metadata to match actual stats.
 
 This script now inspects the raw events via evlib before copying bytes so we can
@@ -11,7 +22,7 @@ Usage:
 
 If output is not specified, creates <input>_evt3.dat in the same directory.
 
-See docs/evlib-integration.md for context and requirements.
+See docs/plans/raw-to-evt3-deprecation.md for evidence this approach was abandoned.
 """
 
 from __future__ import annotations
@@ -238,6 +249,21 @@ See docs/evlib-integration.md for details.
 
 def main() -> int:
     """Main entry point."""
+    # Deprecation warning
+    print("=" * 70)
+    print("⚠️  DEPRECATION WARNING")
+    print("=" * 70)
+    print()
+    print("This tool converts IDS camera .raw files (separate recordings).")
+    print("It does NOT convert legacy Sensofusion .dat files.")
+    print()
+    print("For legacy data export, use:")
+    print("  nix develop --command convert-legacy-dat-to-hdf5 <file.dat>")
+    print()
+    print("Continuing with experimental IDS conversion...")
+    print("=" * 70)
+    print()
+
     args = parse_args()
 
     # Determine output path
