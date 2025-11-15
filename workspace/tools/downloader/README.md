@@ -22,6 +22,37 @@ download-datasets --verify      # Verify SHA256 checksums
 download-datasets --dry-run     # Preview without downloading
 ```
 
+## Troubleshooting
+
+### Google Drive Quota Exceeded
+
+Google Drive limits how many times a file can be downloaded in a 24-hour period. If you see:
+
+```
+⚠️  Google Drive Quota Exceeded:
+   Too many users have downloaded these files recently.
+```
+
+**Solutions:**
+
+1. **Wait 24 hours** - Google's quota resets after ~24 hours
+2. **Manual browser download**:
+   - Visit: https://drive.google.com/drive/folders/18ORzE9_aHABYqOHzVdL0GANk_eIMaSuE
+   - Download files directly through Google Drive web interface
+   - Place in correct directories:
+     - `evio/data/fan/` - Fan datasets
+     - `evio/data/drone/` - Drone datasets
+     - `evio/data/fred-0/events/` - Fred-0 events
+3. **Alternative access** - Contact dataset owner for different sharing method
+
+### Resume Interrupted Downloads
+
+The downloader automatically resumes partial downloads using HTTP Range requests:
+
+```bash
+download-datasets --yes  # Will resume any partial files
+```
+
 ## Architecture
 
 - `cli.py` - CLI entry point, argument parsing

@@ -55,8 +55,12 @@ async def download_with_confirmation(
                         progress_callback(len(content))
                 return True, ""
 
-            # Got HTML - need to extract confirmation parameters
+            # Got HTML - check for quota exceeded error first
             html = await resp.text()
+
+            # Check for quota exceeded (Google Drive rate limit)
+            if 'Quota exceeded' in html or 'Too many users have viewed or downloaded' in html:
+                return False, "QUOTA_EXCEEDED"
 
             # Extract confirmation value from hidden input
             # <input type="hidden" name="confirm" value="t">
@@ -89,8 +93,12 @@ async def download_with_confirmation(
             # Verify we got file, not HTML error page
             content_type = resp.headers.get('content-type', '')
             if 'text/html' in content_type:
-                # Still got HTML - token/cookie didn't work
-                snippet = (await resp.text())[:200]
+                # Still got HTML - check for quota exceeded
+                html = await resp.text()
+                if 'Quota exceeded' in html or 'Too many users have viewed or downloaded' in html:
+                    return False, "QUOTA_EXCEEDED"
+                # Other HTML error
+                snippet = html[:200]
                 return False, f"Got HTML instead of file. Response: {snippet}..."
 
             # Stream download

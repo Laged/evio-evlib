@@ -215,10 +215,34 @@ def main():
     if failures:
         print(f"❌ Failed: {len(failures)} files")
         print()
-        print("Failed downloads:")
-        for dataset, error in failures:
-            print(f"  - {dataset['name']}: {error}")
-            print(f"    Manual: https://drive.google.com/uc?id={dataset['id']}")
+
+        # Check if all/most failures are quota exceeded
+        quota_failures = [(d, e) for d, e in failures if e == "QUOTA_EXCEEDED"]
+        other_failures = [(d, e) for d, e in failures if e != "QUOTA_EXCEEDED"]
+
+        if quota_failures:
+            print("⚠️  Google Drive Quota Exceeded:")
+            print()
+            print("   Too many users have downloaded these files recently.")
+            print("   Google Drive has temporarily blocked access.")
+            print()
+            print("   Solutions:")
+            print("   1. Wait 24 hours and try again")
+            print("   2. Download manually via browser:")
+            print("      https://drive.google.com/drive/folders/18ORzE9_aHABYqOHzVdL0GANk_eIMaSuE")
+            print("   3. Contact dataset owner for alternative access")
+            print()
+            print(f"   Affected files ({len(quota_failures)}):")
+            for dataset, _ in quota_failures:
+                print(f"     - {dataset['name']}")
+
+        if other_failures:
+            if quota_failures:
+                print()
+            print("Other failures:")
+            for dataset, error in other_failures:
+                print(f"  - {dataset['name']}: {error}")
+                print(f"    Manual: https://drive.google.com/uc?id={dataset['id']}")
 
     print()
     inventory = check_inventory()
