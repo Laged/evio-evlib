@@ -351,12 +351,19 @@ dependencies = [
     { name = "polars" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "evlib", specifier = ">=0.8.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "polars", specifier = ">=0.20.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "evio-verifier"
