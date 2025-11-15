@@ -209,6 +209,12 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
 '
         '';
 
+        # Convert legacy .dat to HDF5 script
+        convertLegacyDatToHdf5Script = pkgs.writeShellScriptBin "convert-legacy-dat-to-hdf5" ''
+          set -euo pipefail
+          exec ${pkgs.uv}/bin/uv run --package evio-core python scripts/convert_legacy_dat_to_hdf5.py "$@"
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -221,6 +227,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             convertEvt3Script       # convert-evt3-raw-to-dat command
             convertAllDatasetsScript # convert-all-datasets command
             unzipDatasetsScript     # unzip-datasets command
+            convertLegacyDatToHdf5Script # convert-legacy-dat-to-hdf5 command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -284,9 +291,10 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  Sync workspace: uv sync"
             echo ""
             echo "📊 Dataset Management:"
-            echo "  unzip-datasets       : Extract junction-sensofusion.zip"
-            echo "  download-datasets    : Download from Google Drive (~1.4 GB)"
-            echo "  convert-all-datasets : Convert all .raw files to EVT3 .dat"
+            echo "  unzip-datasets              : Extract junction-sensofusion.zip"
+            echo "  download-datasets           : Download from Google Drive (~1.4 GB)"
+            echo "  convert-all-datasets        : Convert all .raw files to EVT3 .dat"
+            echo "  convert-legacy-dat-to-hdf5  : Convert legacy .dat to evlib HDF5"
             echo ""
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"
@@ -300,6 +308,10 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  run-mvp-1            : MVP 1 - Event density"
             echo "  run-mvp-2            : MVP 2 - Voxel FFT"
             echo ""
+            echo "📈 Raw Dataset Sandbox:"
+            echo "  run-evlib-raw-demo   : Load .raw with evlib and emit quick stats/frames"
+            echo "  run-evlib-raw-player : Simple real-time playback of .raw via evlib"
+            echo ""
 
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
@@ -308,6 +320,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_evt3.dat'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
+            alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
+            alias run-evlib-raw-player='uv run --package evlib-examples evlib-raw-player'
 
             echo "Read .claude/skills/dev-environment.md for workflow guidelines"
             echo "=========================================="
