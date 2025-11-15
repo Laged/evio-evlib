@@ -132,8 +132,8 @@ def main() -> None:
                 (pl.col("t") < win_end)
             )
 
-        # Build frame (use uint16 for geometry detection)
-        frame_accum = build_accum_frame_evlib(window_events, width, height, clip_to_uint8=False)
+        # Match original: ALWAYS clip to uint8 (even in Pass 1)
+        frame_accum = build_accum_frame_evlib(window_events, width, height, clip_to_uint8=True)
 
         # Detect multiple ellipses (propellers)
         # Use --debug flag to enable diagnostic output
