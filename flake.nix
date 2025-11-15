@@ -27,6 +27,108 @@
           pkgs.libxkbcommon
         ];
 
+        # Unzip datasets script
+        unzipDatasetsScript = pkgs.writeShellScriptBin "unzip-datasets" ''
+          set -euo pipefail
+
+          ZIP_PATH="evio/data/junction-sensofusion.zip"
+          DATA_DIR="evio/data"
+
+          # Check ZIP exists
+          if [ ! -f "$ZIP_PATH" ]; then
+              echo "❌ Error: junction-sensofusion.zip not found"
+              echo ""
+              echo "Please copy the ZIP file to evio/data/ first:"
+              echo "  cp /path/to/junction-sensofusion.zip evio/data/"
+              echo ""
+              echo "Then run: unzip-datasets"
+              exit 1
+          fi
+
+          # Check current inventory
+          echo "Checking existing datasets..."
+          ${pkgs.uv}/bin/uv run --package downloader python -c '
+from downloader.verification import check_inventory, print_inventory
+inventory = check_inventory()
+print_inventory(inventory)
+' || true
+
+          # Check if datasets exist
+          if [ -d "$DATA_DIR/fan" ] || [ -d "$DATA_DIR/drone_idle" ] || [ -d "$DATA_DIR/drone_moving" ] || [ -d "$DATA_DIR/fred-0" ]; then
+              echo ""
+              echo "⚠️  WARNING: Existing datasets found"
+              echo ""
+              echo "The following will be overwritten:"
+              [ -d "$DATA_DIR/fan" ] && echo "  ✓ fan/ (6 files)"
+              [ -d "$DATA_DIR/drone_idle" ] && echo "  ✓ drone_idle/ (2 files)"
+              [ -d "$DATA_DIR/drone_moving" ] && echo "  ✓ drone_moving/ (2 files)"
+              [ -d "$DATA_DIR/fred-0" ] && echo "  ✓ fred-0/ (events + frames)"
+              echo ""
+              read -p "Continue with extraction? (y/N): " -n 1 -r
+              echo
+              if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                  echo "Extraction cancelled."
+                  exit 0
+              fi
+          fi
+
+          # Extract ZIP
+          echo ""
+          echo "Extracting datasets..."
+          if ! ${pkgs.unzip}/bin/unzip -o "$ZIP_PATH" -d "$DATA_DIR"; then
+              echo ""
+              echo "❌ Error: Failed to extract datasets"
+              echo ""
+              echo "The ZIP file may be corrupted. Try:"
+              echo "  1. Re-download junction-sensofusion.zip"
+              echo "  2. Verify file integrity"
+              echo "  3. Extract manually: cd evio/data && unzip junction-sensofusion.zip"
+              exit 1
+          fi
+
+          # Verify extraction
+          echo ""
+          echo "Verifying extraction..."
+          ${pkgs.uv}/bin/uv run --package downloader python -c '
+from downloader.verification import check_inventory, print_inventory
+
+inventory = check_inventory()
+
+# Check for expected datasets
+expected = ["fan", "drone_idle", "drone_moving", "fred-0"]
+found = [name for name in expected if name in inventory and (inventory[name].get("dat", 0) > 0 or inventory[name].get("raw", 0) > 0)]
+missing = [name for name in expected if name not in found]
+
+if missing:
+    print("⚠️  Warning: Extraction incomplete")
+    print("")
+    print("Missing expected datasets:", ", ".join(missing))
+    print("")
+    print("Please check:")
+    print("  - ZIP file integrity")
+    print("  - Available disk space")
+    print("")
+    print("Run download-datasets as fallback if needed.")
+    exit(1)
+
+print("=" * 50)
+print("  Extraction Summary")
+print("=" * 50)
+print("")
+print(f"✅ Successfully extracted {len(found)} dataset groups")
+print("")
+print_inventory(inventory)
+
+# Show demo commands if fan datasets present
+if inventory.get("fan", {}).get("dat", 0) > 0:
+    print("")
+    print("Ready to run:")
+    print("  run-demo-fan")
+    print("  run-mvp-1")
+    print("  run-mvp-2")
+'
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -35,6 +137,8 @@
             python
             pkgs.uv                 # UV package manager
             pkgs.gdown              # Google Drive downloader
+            pkgs.unzip              # ZIP extraction
+            unzipDatasetsScript     # unzip-datasets command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -98,7 +202,8 @@
             echo "  Sync workspace: uv sync"
             echo ""
             echo "📊 Dataset Management:"
-            echo "  download-datasets    : Download event camera datasets (~1.4 GB)"
+            echo "  unzip-datasets       : Extract junction-sensofusion.zip"
+            echo "  download-datasets    : Download from Google Drive (~1.4 GB)"
             echo ""
             echo "🚀 Running Commands (from repo root):"
             echo "  uv run --package <member> <command>"

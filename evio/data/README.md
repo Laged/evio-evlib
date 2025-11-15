@@ -7,27 +7,65 @@ This directory contains event camera dataset files (.dat, .aedat, .h5 formats).
 ### Fan Datasets (for RPM detection challenges)
 - `fan/fan_const_rpm.dat` - Constant RPM fan rotation (202 MB)
 - `fan/fan_const_rpm.raw` - Raw format (119 MB)
-- `fan/fan_varying_rpm.dat` - Varying RPM fan rotation (489 MB)
-- `fan/fan_varying_rpm.raw` - Raw format (367 MB)
+- `fan/fan_varying_rpm.dat` - Varying RPM fan rotation (490 MB)
+- `fan/fan_varying_rpm.raw` - Raw format (288 MB)
 - `fan/fan_varying_rpm_turning.dat` - Fan with rotation variation (367 MB)
-- `fan/fan_varying_rpm_turning.raw` - Raw format (224 MB)
+- `fan/fan_varying_rpm_turning.raw` - Raw format (225 MB)
 
 ### Drone Datasets (for tracking challenges)
-- `drone/drone_idle.dat` - Stationary drone
-- `drone/drone_idle.raw` - Raw format
-- `drone/drone_moving.dat` - Moving drone
-- `drone/drone_moving.raw` - Raw format
+- `drone_idle/drone_idle.dat` - Stationary drone (702 MB)
+- `drone_idle/drone_idle.raw` - Raw format (982 MB)
+- `drone_moving/drone_moving.dat` - Moving drone (1.4 GB)
+- `drone_moving/drone_moving.raw` - Raw format (753 MB)
 
 ### Fred-0 Reference Dataset
-- `fred-0/events/events.dat` - Event data
-- `fred-0/events/events.raw` - Raw format
-- `fred-0/frames/*.png` - Reference frame images
+- `fred-0/Event/events.dat` - Event data (224 MB)
+- `fred-0/Event/events.raw` - Raw format (143 MB)
+- `fred-0/Event/Frames/*.png` - Reference frame images (50 frames)
+- `fred-0/Event_YOLO/*.txt` - YOLO annotation files
 
 ## Downloading Datasets
 
-**These files are not committed to git** (they are large binary files ~1.4 GB total, listed in .gitignore).
+**These files are not committed to git** (they are large binary files ~5.6 GB total, listed in .gitignore).
 
-### Automated Download (Recommended)
+### Option 1: Extract with unzip-datasets (Recommended for Hackathon)
+
+If you have the `junction-sensofusion.zip` file:
+
+1. Copy the ZIP file to this directory:
+   ```bash
+   cp /path/to/junction-sensofusion.zip evio/data/
+   ```
+
+2. From the `nix develop` shell, run:
+   ```bash
+   unzip-datasets
+   ```
+
+This will:
+- Check if datasets already exist (prompts before overwriting)
+- Extract all datasets to the correct directory structure
+- Verify extraction was successful
+- Show inventory summary
+
+After extraction, you'll have:
+- `evio/data/fan/` - Fan datasets (6 files, ~1.7 GB)
+- `evio/data/drone_idle/` - Idle drone dataset (2 files, ~1.7 GB)
+- `evio/data/drone_moving/` - Moving drone dataset (2 files, ~2.2 GB)
+- `evio/data/fred-0/` - Fred-0 reference dataset (events + 50 frames, ~400 MB)
+
+### Option 2: Manual Extraction
+
+If you prefer manual control:
+
+```bash
+cd evio/data/
+unzip junction-sensofusion.zip
+```
+
+### Option 3: Automated Download
+
+If you don't have the ZIP file, download from Google Drive:
 
 From the `nix develop` shell:
 
@@ -40,7 +78,9 @@ This will:
 - Automatically organize files into the correct directory structure
 - Prompt for confirmation before downloading
 
-### Manual Download
+**Note:** May hit quota limits during high-traffic periods (hackathon events).
+
+### Option 4: Manual Download
 
 For the Sensofusion Junction Hackathon:
 - Download dataset files from Sensofusion mentors at the venue

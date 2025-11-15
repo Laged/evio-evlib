@@ -51,6 +51,7 @@ result-*
 *.raw
 *.aedat
 *.h5
+evio/data/junction-sensofusion.zip
 
 # Compiled
 *.o
