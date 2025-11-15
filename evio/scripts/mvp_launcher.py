@@ -393,7 +393,7 @@ class MVPLauncher:
                 except Exception as e:
                     error_msg = f"Failed to load dataset: {str(e)}"
                     print(error_msg, file=sys.stderr)
-                    # Stay in menu mode on error
+                    self._show_error_and_return_to_menu(error_msg)
 
         return True
 
@@ -499,6 +499,74 @@ class MVPLauncher:
                         1, cv2.LINE_AA)
             y_offset += 22
 
+    def _draw_help_overlay(self, frame: np.ndarray) -> None:
+        """Draw help overlay with keybindings."""
+        h, w = frame.shape[:2]
+
+        # Semi-transparent overlay (bottom third)
+        overlay_h = h // 3
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, h - overlay_h), (w, h), (30, 30, 30), -1)
+        cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+
+        # Help text
+        help_lines = [
+            "KEYBOARD SHORTCUTS",
+            "",
+            "1 - Toggle detector overlay",
+            "2 - Toggle HUD",
+            "h - Toggle this help",
+            "ESC - Return to menu",
+            "q - Quit application",
+        ]
+
+        y_start = h - overlay_h + 30
+        for i, line in enumerate(help_lines):
+            font_scale = 0.7 if i == 0 else 0.5
+            thickness = 2 if i == 0 else 1
+            color = (255, 255, 255) if i == 0 else (200, 200, 200)
+
+            cv2.putText(frame, line, (30, y_start + i * 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, color,
+                        thickness, cv2.LINE_AA)
+
+    def _show_error_and_return_to_menu(self, error_msg: str) -> None:
+        """Show error message for 3 seconds then return to menu."""
+        frame = np.full((480, 640, 3), (30, 30, 30), dtype=np.uint8)
+
+        # Error title
+        cv2.putText(frame, "ERROR", (270, 200),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, cv2.LINE_AA)
+
+        # Error message (word wrap)
+        words = error_msg.split()
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            size = cv2.getTextSize(test_line, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+            if size[0] > 580:
+                lines.append(current_line)
+                current_line = word
+            else:
+                current_line = test_line
+        if current_line:
+            lines.append(current_line)
+
+        y = 250
+        for line in lines[:4]:  # Max 4 lines
+            cv2.putText(frame, line, (30, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+            y += 30
+
+        # Show for 3 seconds
+        for _ in range(30):
+            cv2.imshow(self.window_name, frame)
+            if cv2.waitKey(100) & 0xFF in (ord('q'), 27):
+                break
+
+        self.mode = AppMode.MENU
+
     def _playback_loop(self) -> bool:
         """Playback mode loop. Returns False to exit app."""
         if self.playback_state is None:
@@ -559,6 +627,10 @@ class MVPLauncher:
         self._last_frame_time = now
 
         self._draw_hud(frame, state, self._fps, self._playback_wall_start)
+
+        # Draw help overlay if enabled
+        if state.overlay_flags.get("help", False):
+            self._draw_help_overlay(frame)
 
         # Display
         cv2.imshow(self.window_name, frame)

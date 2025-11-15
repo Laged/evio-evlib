@@ -316,8 +316,9 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  run-evlib-tests      : Compare evlib vs legacy loader"
             echo ""
             echo "🎯 Detector Demos:"
+            echo "  run-mvp-demo           : MVP launcher (menu + detectors) - NEW!"
             echo "  run-fan-rpm-demo       : Fan RPM (evlib, detector-commons)"
-            echo "  run-drone-detector-demo: Drone detection (evlib, detector-commons) - NEW!"
+            echo "  run-drone-detector-demo: Drone detection (evlib, detector-commons)"
             echo "  run-fan-detector       : Fan RPM (legacy loader)"
             echo "  run-drone-detector     : Drone detection (legacy loader)"
             echo ""
@@ -343,6 +344,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
             alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
             alias run-evlib-raw-player='uv run --package evlib-examples evlib-raw-player'
+            alias run-mvp-demo='uv run --package evio python evio/scripts/mvp_launcher.py'
             alias run-fan-rpm-demo='uv run fan-rpm-demo evio/data/fan/fan_const_rpm_legacy.h5'
             alias run-drone-detector-demo='uv run drone-detector-demo evio/data/drone_idle/drone_idle_legacy.h5'
             alias run-fan-detector='uv run --package evio python evio/scripts/fan_detector_demo.py evio/data/fan/fan_const_rpm.dat'
