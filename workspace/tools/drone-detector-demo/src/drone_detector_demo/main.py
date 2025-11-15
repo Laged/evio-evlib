@@ -416,9 +416,8 @@ def main() -> None:
 
         # Stack top and bottom and scale for display
         stacked = np.vstack([vis, bottom_half])
-        scale = 0.7
-        stacked_small = cv2.resize(stacked, None, fx=scale, fy=scale)
-        cv2.imshow("Events + Propeller mask + Speed", stacked_small)
+        # Match original: NO downscaling (show at full resolution)
+        cv2.imshow("Events + Propeller mask + Speed", stacked)
 
         if (cv2.waitKey(1) & 0xFF) in (27, ord("q")):
             break
