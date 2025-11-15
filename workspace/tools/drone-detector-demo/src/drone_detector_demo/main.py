@@ -75,6 +75,16 @@ def main() -> None:
         default=0.0,
         help="Skip first N seconds of recording (useful for finding drone)",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug output for geometry detection",
+    )
+    parser.add_argument(
+        "--show-pass1",
+        action="store_true",
+        help="Show Pass 1 visualization window (hidden by default)",
+    )
     args = parser.parse_args()
 
     print(f"Loading {args.h5} with evlib...")
@@ -125,9 +135,9 @@ def main() -> None:
         # Build frame
         frame_accum = build_accum_frame_evlib(window_events, width, height)
 
-        # Detect multiple ellipses (propellers) - enable debug for first 5 frames
-        debug_enabled = processed_count < 5
-        if debug_enabled:
+        # Detect multiple ellipses (propellers)
+        # Use --debug flag to enable diagnostic output
+        if args.debug and processed_count < 5:
             print(f"\n=== Frame {processed_count} (t={win_start}-{win_end} us) ===")
 
         # Lower pre_threshold to 50 (out of 255) to detect low-intensity propellers
@@ -138,7 +148,7 @@ def main() -> None:
             max_ellipses=args.max_ellipses,
             pre_threshold=50,  # Much lower than default 250
             min_area=100.0,  # Lower than default 145
-            debug=debug_enabled,
+            debug=args.debug and processed_count < 5,
         )
 
         processed_count += 1
@@ -153,27 +163,30 @@ def main() -> None:
         ell_times.append(t_s)
         ell_ellipses_per_window.append(ellipses)
 
-        # Visualize
-        x, y, p = get_window_evlib(events, win_start, win_end)
-        vis = pretty_event_frame_evlib(x, y, p, width, height)
+        # Optional visualization (use --show-pass1 to enable)
+        if args.show_pass1:
+            x, y, p = get_window_evlib(events, win_start, win_end)
+            vis = pretty_event_frame_evlib(x, y, p, width, height)
 
-        # Draw all detected ellipses
-        for (cx, cy, a, b, phi) in ellipses:
-            xs_ring, ys_ring = ellipse_points(cx, cy, a, b, phi, 360, width, height)
-            for xi, yi in zip(xs_ring, ys_ring):
-                vis[yi, xi] = (0, 255, 0)  # green
+            # Draw all detected ellipses
+            for (cx, cy, a, b, phi) in ellipses:
+                xs_ring, ys_ring = ellipse_points(cx, cy, a, b, phi, 360, width, height)
+                for xi, yi in zip(xs_ring, ys_ring):
+                    vis[yi, xi] = (0, 255, 0)  # green
 
-            cv2.circle(vis, (cx, cy), 5, (0, 0, 255), -1)  # red center
+                cv2.circle(vis, (cx, cy), 5, (0, 0, 255), -1)  # red center
 
-        cv2.imshow("Pass 1: Multi-ellipse detection", vis)
+            cv2.imshow("Pass 1: Multi-ellipse detection", vis)
 
-        if (cv2.waitKey(1) & 0xFF) in (27, ord("q")):
-            break
+            if (cv2.waitKey(1) & 0xFF) in (27, ord("q")):
+                break
 
         current_time += window_us
         frame_count += 1
 
-    cv2.destroyAllWindows()
+    # Close Pass 1 window if it was shown
+    if args.show_pass1:
+        cv2.destroyAllWindows()
 
     if not ell_times:
         print(f"\nNo geometry collected. Exiting.")
