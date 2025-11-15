@@ -7,6 +7,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import polars as pl
+import evlib
 
 
 def decode_legacy_events(event_words: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -63,6 +65,46 @@ def compute_legacy_stats(recording) -> dict[str, int]:
         'p_count_0': int((polarity == 0).sum()),
         'p_count_1': int((polarity == 1).sum()),
     }
+
+
+def compute_evlib_stats(dat_path: Path) -> dict[str, int]:
+    """Extract statistics from evlib-loaded file.
+
+    Handles both Duration and Int64 timestamp types.
+    See: workspace/tools/evio-verifier/src/evio_verifier/cli.py:46-76
+
+    Args:
+        dat_path: Path to EVT3 .dat file
+
+    Returns:
+        Dict with same keys as compute_legacy_stats()
+    """
+    lazy = evlib.load_events(str(dat_path))
+
+    # Handle Duration vs Int64 timestamps
+    schema = lazy.collect_schema()
+    t_dtype = schema["t"]
+
+    if isinstance(t_dtype, pl.Duration):
+        t_min_expr = pl.col("t").dt.total_microseconds().min()
+        t_max_expr = pl.col("t").dt.total_microseconds().max()
+    else:
+        t_min_expr = pl.col("t").min()
+        t_max_expr = pl.col("t").max()
+
+    stats = lazy.select([
+        pl.len().alias("event_count"),
+        t_min_expr.alias("t_min"),
+        t_max_expr.alias("t_max"),
+        pl.col("x").min().alias("x_min"),
+        pl.col("x").max().alias("x_max"),
+        pl.col("y").min().alias("y_min"),
+        pl.col("y").max().alias("y_max"),
+        (pl.col("polarity") == -1).sum().alias("p_count_0"),
+        (pl.col("polarity") == 1).sum().alias("p_count_1"),
+    ]).collect().to_dicts()[0]
+
+    return {k: int(v) for k, v in stats.items()}
 
 
 def test_decode_legacy_events():
@@ -130,3 +172,27 @@ def test_compute_legacy_stats():
     assert stats['y_max'] == 300
     assert stats['p_count_0'] == 1
     assert stats['p_count_1'] == 2
+
+
+@pytest.mark.skipif(
+    not Path("evio/data/fan/fan_const_rpm_evt3.dat").exists(),
+    reason="EVT3 test file not available"
+)
+def test_compute_evlib_stats():
+    """Test statistics extraction from evlib-loaded file."""
+    # Use actual converted file for this test
+    dat_path = Path("evio/data/fan/fan_const_rpm_evt3.dat")
+
+    stats = compute_evlib_stats(dat_path)
+
+    # Basic sanity checks on known dataset
+    assert stats['event_count'] > 0
+    assert stats['t_min'] >= 0
+    assert stats['t_max'] > stats['t_min']
+    assert stats['x_min'] >= 0
+    assert stats['x_max'] > stats['x_min']
+    assert stats['y_min'] >= 0
+    assert stats['y_max'] > stats['y_min']
+    assert stats['p_count_0'] >= 0
+    assert stats['p_count_1'] >= 0
+    assert stats['p_count_0'] + stats['p_count_1'] == stats['event_count']
