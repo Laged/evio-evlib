@@ -30,7 +30,7 @@
         # Convert EVT3 raw to dat script
         convertEvt3Script = pkgs.writeShellScriptBin "convert-evt3-raw-to-dat" ''
           set -euo pipefail
-          exec ${python}/bin/python scripts/convert_evt3_raw_to_dat.py "$@"
+          exec ${pkgs.uv}/bin/uv run python scripts/convert_evt3_raw_to_dat.py "$@"
         '';
 
         # Convert all datasets script
@@ -65,7 +65,7 @@
 
           for RAW_FILE in $RAW_FILES; do
               echo "Converting: $RAW_FILE"
-              if ${python}/bin/python scripts/convert_evt3_raw_to_dat.py "$RAW_FILE" --force; then
+              if ${pkgs.uv}/bin/uv run python scripts/convert_evt3_raw_to_dat.py "$RAW_FILE" --force; then
                   SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               else
                   FAIL_COUNT=$((FAIL_COUNT + 1))
@@ -304,9 +304,11 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo ""
             echo "Demo Aliases:"
             echo "  run-demo-fan         : Play fan dataset (legacy loader)"
-            echo "  run-demo-fan-ev3     : Play fan dataset (evlib loader on EVT3)"
+            echo "  run-demo-fan-ev3     : Play fan dataset (evlib on legacy HDF5)"
             echo "  run-mvp-1            : MVP 1 - Event density"
             echo "  run-mvp-2            : MVP 2 - Voxel FFT"
+            echo ""
+            echo "NOTE: run-demo-fan-ev3 requires: convert-legacy-dat-to-hdf5 evio/data/fan/fan_const_rpm.dat"
             echo ""
             echo "📈 Raw Dataset Sandbox:"
             echo "  run-evlib-raw-demo   : Load .raw with evlib and emit quick stats/frames"
@@ -317,7 +319,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias download-datasets='uv run --package downloader download-datasets'
             alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
-            alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_evt3.dat'
+            alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_legacy.h5'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
             alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
