@@ -55,31 +55,31 @@ async def download_with_confirmation(
                         progress_callback(len(content))
                 return True, ""
 
-            # Got HTML - need to extract confirmation token
+            # Got HTML - need to extract confirmation parameters
             html = await resp.text()
 
-            # Extract confirmation token from HTML
-            token = None
-            for pattern in [
-                r'confirm=([^&"\']+)',
-                r'download\?id=.*&confirm=([^&"\']+)',
-                r'id="download-form".*?action=".*?confirm=([^&"\']+)',
-            ]:
-                match = re.search(pattern, html)
-                if match:
-                    token = match.group(1)
-                    break
+            # Extract confirmation value from hidden input
+            # <input type="hidden" name="confirm" value="t">
+            confirm_match = re.search(r'name="confirm"\s+value="([^"]+)"', html)
+            if not confirm_match:
+                return False, "Could not extract confirmation value from Drive page"
+            confirm = confirm_match.group(1)
 
-            if not token:
-                return False, "Could not extract confirmation token from Drive page"
+            # Extract UUID from hidden input (optional, but recommended)
+            # <input type="hidden" name="uuid" value="...">
+            uuid_match = re.search(r'name="uuid"\s+value="([^"]+)"', html)
+            uuid = uuid_match.group(1) if uuid_match else None
 
-            # CRITICAL: Session now has download_warning cookie from this response
+            # CRITICAL: Session now has cookies from this response
             # aiohttp.ClientSession automatically preserves cookies for the domain
     except Exception as e:
         return False, f"Failed to fetch initial response: {str(e)}"
 
-    # Step 2: Download with token (cookie automatically included by session)
-    download_url = f"{url}&confirm={token}"
+    # Step 2: Download with confirmation parameters
+    # Build URL for drive.usercontent.google.com (where the form action points)
+    download_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm={confirm}"
+    if uuid:
+        download_url += f"&uuid={uuid}"
 
     try:
         async with session.get(download_url) as resp:
