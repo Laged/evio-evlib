@@ -85,6 +85,12 @@ def main() -> None:
         action="store_true",
         help="Show Pass 1 visualization window (hidden by default)",
     )
+    parser.add_argument(
+        "--pre-threshold",
+        type=int,
+        default=250,
+        help="Pre-threshold for geometry detection (0-255). Default: 250 (original). HDF5 exports may need lower values (50-100).",
+    )
     args = parser.parse_args()
 
     print(f"Loading {args.h5} with evlib...")
@@ -140,11 +146,11 @@ def main() -> None:
         if args.debug and processed_count < 5:
             print(f"\n=== Frame {processed_count} (t={win_start}-{win_end} us) ===")
 
-        # Match original detection parameters (verified against example-drone-original.py)
+        # Detection parameters (tunable via CLI for dataset-specific characteristics)
         ellipses = propeller_mask_from_frame(
             frame_accum,
             max_ellipses=args.max_ellipses,
-            pre_threshold=250,  # Original line 192: top 2% intensity only
+            pre_threshold=args.pre_threshold,  # CLI override for different datasets
             min_area=145.0,     # Original line 171: minimum contour size
             debug=args.debug and processed_count < 5,
         )
