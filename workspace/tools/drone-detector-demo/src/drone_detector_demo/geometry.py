@@ -50,12 +50,9 @@ def propeller_mask_from_frame(
         return []
 
     img8 = cv2.normalize(f, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    _, image_binary = cv2.threshold(img8, 250, 255, cv2.THRESH_BINARY)
 
-    # Apply Otsu threshold
-    _, mask = cv2.threshold(
-        image_binary, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
+    # Apply Otsu threshold directly (no pre-threshold needed)
+    _, mask = cv2.threshold(img8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Morphological operations to clean up noise
     kernel = np.ones((5, 5), np.uint8)
