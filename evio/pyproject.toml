@@ -1,0 +1,78 @@
+[project]
+name = "evio"
+version = "0.4.0"
+description = "Minimal library for standardized handling of event camera data."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ahti Helminen" }]
+keywords = ["event-camera", "DVS", "neuromorphic", "stream", "asyncio"]
+classifiers = [
+"Programming Language :: Python :: 3",
+"License :: OSI Approved :: MIT License",
+"Topic :: Scientific/Engineering :: Image Processing",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "opencv-python>=4.11.0.86",
+    "evlib>=0.1.0",
+    "polars>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+"pytest>=8",
+"pytest-timeout>=2.3.1",
+"ruff>=0.6",
+"types-setuptools",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+default-groups = []
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+mypy_path = "src"
+
+[tool.ruff]
+line-length = 80
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+	"A",    # builtins
+	"ANN",  # type annotations
+	"B",    # bugbear
+	"BLE",  # blind exception
+	"C4",   # comprehensions
+	"COM",  # commas
+	"E",    # pycodestyle
+	"EM",   # errormessage
+	"EXE",  # executable
+	"F",    # pyflakes
+	"FURB", # refurb
+	"I",    # isort
+	"ICN",  # import-conventions
+	"INP",  # implicit-namespace-package
+	"NPY",  # numpy
+	"PERF", # perflint
+	"PIE",  # misc dict stuff
+	"PTH",  # pathlib
+	"RET",  # return
+	"RUF",  # ruff
+	"SIM",  # simplify
+	"T10",  # debugger
+	"TRY",  # tryceratops
+	"UP",   # pyupgrade
+]
+ignore = [
+	"COM812",
+]
