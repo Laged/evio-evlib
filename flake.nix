@@ -57,9 +57,15 @@
               mkdir -p workspace/libs workspace/plugins workspace/apps
             fi
 
-            # Initialize UV workspace (creates .venv, runs uv sync)
-            echo "Initializing UV workspace..."
-            uv sync --quiet 2>/dev/null || echo "Workspace initialized"
+            # Check if workspace needs initialization
+            if [ ! -d .venv ]; then
+              if [ ! -d workspace/libs/evio-core ]; then
+                echo "⚠️  Workspace members not found. This appears to be initial setup."
+                echo "    See docs/setup.md for workspace initialization steps."
+              else
+                echo "⚠️  First time setup: Run 'uv sync' to initialize workspace"
+              fi
+            fi
 
             echo ""
             echo "📦 Package Management:"
