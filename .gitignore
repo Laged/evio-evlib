@@ -1,6 +1,9 @@
 # Nested git repository (treat as regular directory)
 evio/.git/
 
+# Git worktrees
+.worktrees/
+
 # Python
 __pycache__/
 *.py[cod]
