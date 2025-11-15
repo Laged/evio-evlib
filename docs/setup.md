@@ -22,13 +22,24 @@ cd evio-evlib
 # Enter Nix environment
 nix develop
 
-# Workspace auto-initialized by shellHook:
-# - Creates workspace/ directory structure
-# - Runs uv sync to install all packages
-# - Sets up shell aliases
+# Initialize workspace (first time only)
+uv sync
+
+# Workspace is ready:
+# - All packages installed
+# - Shell aliases available
+# - Ready to run demos
 ```
 
-That's it! You're ready to develop.
+You're ready to develop!
+
+### Data Files
+
+Event camera dataset files are located in `evio/data/`:
+- `evio/data/fan/*.dat` - Fan rotation datasets (202-489 MB each)
+- Large binary files, currently tracked in git for hackathon
+
+**Note:** These files may be gitignored in future. See `evio/data/README.md` for details on obtaining datasets.
 
 ---
 
@@ -46,10 +57,10 @@ nix develop
 All commands run from repo root using `uv run --package <member>`:
 
 ```bash
-# Run evio legacy demos
-uv run --package evio python scripts/play_dat.py data/fan/fan_const_rpm.dat
+# Run evio legacy demos (note: scripts and data are in evio/ directory)
+uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat
 
-# Use shell aliases
+# Use shell aliases (already use correct paths)
 run-demo-fan
 run-mvp-1
 run-mvp-2
