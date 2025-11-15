@@ -26,7 +26,6 @@ wheels/
 # UV
 .venv/
 venv/
-uv.lock
 .python-version
 
 # IDEs
