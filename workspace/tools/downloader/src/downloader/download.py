@@ -109,33 +109,46 @@ async def download_file(
                         return True, ""
 
                     elif resp.status == 200:
-                        # Server doesn't support Range, sent full file
-                        # FALLBACK: Delete partial, accept full download
-                        if progress and task_id is not None:
-                            progress.update(
-                                task_id,
-                                description=f"[yellow]↓ {dataset['name']} (Range not supported, restarting)"
-                            )
-                        path.unlink()  # Delete partial
-                        resume_from = 0
-                        if progress and task_id is not None:
-                            progress.update(task_id, completed=0)  # Reset progress
+                        # Check if we got HTML instead of file (Google Drive confirmation)
+                        content_type = resp.headers.get('content-type', '')
+                        if 'text/html' in content_type:
+                            # Got HTML - need Drive confirmation flow
+                            if progress and task_id is not None:
+                                progress.update(task_id, description=f"[yellow]↓ {dataset['name']} (needs confirmation)")
+                            if path.exists():
+                                path.unlink()  # Delete any partial
+                            resume_from = 0
+                            if progress and task_id is not None:
+                                progress.update(task_id, completed=0)
+                            # Fall through to Drive confirmation handler below
+                        else:
+                            # Server doesn't support Range, sent full file
+                            # FALLBACK: Delete partial, accept full download
+                            if progress and task_id is not None:
+                                progress.update(
+                                    task_id,
+                                    description=f"[yellow]↓ {dataset['name']} (Range not supported, restarting)"
+                                )
+                            path.unlink()  # Delete partial
+                            resume_from = 0
+                            if progress and task_id is not None:
+                                progress.update(task_id, completed=0)  # Reset progress
 
-                        # Download full file from this response
-                        async with aiofiles.open(path, 'wb') as f:
-                            async for chunk in resp.content.iter_chunked(1 << 20):
-                                await f.write(chunk)
-                                if progress and task_id is not None:
-                                    progress.update(task_id, advance=len(chunk))
+                            # Download full file from this response
+                            async with aiofiles.open(path, 'wb') as f:
+                                async for chunk in resp.content.iter_chunked(1 << 20):
+                                    await f.write(chunk)
+                                    if progress and task_id is not None:
+                                        progress.update(task_id, advance=len(chunk))
 
-                        # Verify size (skip if expected_size is 0)
-                        actual_size = path.stat().st_size
-                        if expected_size > 0 and actual_size != expected_size:
-                            return False, f"Size mismatch: {actual_size} != {expected_size}"
+                            # Verify size (skip if expected_size is 0)
+                            actual_size = path.stat().st_size
+                            if expected_size > 0 and actual_size != expected_size:
+                                return False, f"Size mismatch: {actual_size} != {expected_size}"
 
-                        if progress and task_id is not None:
-                            progress.update(task_id, description=f"[green]✓ {dataset['name']}")
-                        return True, ""
+                            if progress and task_id is not None:
+                                progress.update(task_id, description=f"[green]✓ {dataset['name']}")
+                            return True, ""
 
                     else:
                         # Unexpected status - fall through to full download
