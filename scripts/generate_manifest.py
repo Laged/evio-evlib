@@ -11,9 +11,10 @@ import sys
 from pathlib import Path
 
 try:
-    from gdown import google_drive
+    import gdown
+    import requests
 except ImportError:
-    print("Error: gdown not installed")
+    print("Error: gdown or requests not installed")
     print("Run: uv sync")
     sys.exit(1)
 
@@ -47,75 +48,68 @@ def main():
     print(f"Fetching metadata from: {FOLDER_URL}")
     print()
 
-    # Parse folder ID from URL
-    parsed = google_drive.parse_url(FOLDER_URL)
-    folder_id = parsed.get("id")
-
-    if not folder_id:
-        print("Error: Could not parse folder ID from URL")
-        sys.exit(1)
-
-    print(f"Folder ID: {folder_id}")
-    print("Fetching file list...")
+    # Use gdown's download_folder with skip_download=True to get metadata only
+    print("Fetching file list (metadata only, no downloads)...")
     print()
 
-    # Get file metadata (gdown's internal helper)
     try:
-        files = google_drive._get_folder_contents(
-            folder_id,
+        # Get file metadata without downloading
+        file_list = gdown.download_folder(
+            url=FOLDER_URL,
+            skip_download=True,
+            quiet=False,
             remaining_ok=True
         )
-    except AttributeError:
-        # Try alternative method name (gdown API may vary)
-        try:
-            files = []
-            # Walk folder recursively
-            def walk_folder(fid):
-                items = google_drive._get_directory_structure(fid, None)
-                for item in items:
-                    if item[1] == "file":
-                        files.append({
-                            "id": item[0],
-                            "title": item[2],
-                            "fileSize": item[3] if len(item) > 3 else 0
-                        })
-                    elif item[1] == "folder":
-                        walk_folder(item[0])
+    except Exception as e:
+        print(f"Error fetching folder contents: {e}")
+        print("gdown API may have changed. Please check gdown documentation.")
+        sys.exit(1)
 
-            walk_folder(folder_id)
-        except Exception as e:
-            print(f"Error fetching folder contents: {e}")
-            print("gdown API may have changed. Please check gdown documentation.")
-            sys.exit(1)
+    if not file_list:
+        print("Error: No files found in folder")
+        sys.exit(1)
 
-    print(f"Found {len(files)} files")
+    print(f"Found {len(file_list)} files")
     print()
 
     # Build manifest
     datasets = []
     unmapped = []
 
-    for file_info in files:
-        name = file_info.get("title", "")
-        file_id = file_info.get("id", "")
-        size = int(file_info.get("fileSize", 0))
+    for file_obj in file_list:
+        # GoogleDriveFileToDownload object attributes
+        name = Path(file_obj.path).name  # Extract filename from Drive path
+        file_id = file_obj.id
 
-        # Skip directories and non-data files
+        # Skip if no name or ID
         if not name or not file_id:
             continue
 
-        # Map to repo path
-        if name in PATH_MAPPING:
-            datasets.append({
-                "id": file_id,
-                "name": name,
-                "path": PATH_MAPPING[name],
-                "size": size,
-                "sha256": ""  # To be computed later
-            })
-            print(f"✓ {name} ({size / 1024 / 1024:.1f} MB)")
-        else:
+        # Only process files we want in the manifest
+        if name not in PATH_MAPPING:
             unmapped.append(name)
+            continue
+
+        # Get file size from Google Drive using HEAD request
+        drive_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        try:
+            response = requests.head(drive_url, allow_redirects=True, timeout=10)
+            size = int(response.headers.get('Content-Length', 0))
+            if size == 0:
+                print(f"⚠ {name} - Could not determine size, using 0")
+            size_mb = size / 1024 / 1024
+            print(f"✓ {name} ({size_mb:.1f} MB)")
+        except Exception as e:
+            print(f"⚠ {name} - Error getting size: {e}, using 0")
+            size = 0
+
+        datasets.append({
+            "id": file_id,
+            "name": name,
+            "path": PATH_MAPPING[name],
+            "size": size,
+            "sha256": ""  # To be computed later
+        })
 
     if unmapped:
         print()
