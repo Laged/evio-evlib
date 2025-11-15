@@ -13,6 +13,47 @@ import time
 import evlib
 import polars as pl
 
+# Try to import detector utilities - degrade gracefully if missing
+try:
+    # Try absolute import first (when running via uv run --package)
+    try:
+        from evio.scripts.detector_utils import (
+            detect_fan,
+            detect_drone,
+            render_fan_overlay,
+            render_drone_overlay,
+            FanDetection,
+            DroneDetection,
+        )
+    except ImportError:
+        # Fall back to relative import (when running script directly)
+        from detector_utils import (
+            detect_fan,
+            detect_drone,
+            render_fan_overlay,
+            render_drone_overlay,
+            FanDetection,
+            DroneDetection,
+        )
+    DETECTORS_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Detector utilities not available: {e}", file=sys.stderr)
+    print("Running in base playback mode only (no detector overlays)", file=sys.stderr)
+    DETECTORS_AVAILABLE = False
+
+    # Define stub functions to avoid NameError
+    def detect_fan(*args, **kwargs):
+        return None
+
+    def detect_drone(*args, **kwargs):
+        return None
+
+    def render_fan_overlay(frame, *args, **kwargs):
+        return frame
+
+    def render_drone_overlay(frame, *args, **kwargs):
+        return frame
+
 
 class AppMode(Enum):
     """Application state."""
@@ -137,6 +178,18 @@ class MVPLauncher:
         datasets.sort(key=lambda d: (d.category, d.name))
         return datasets
 
+    def _map_detector_type(self, category: str) -> str:
+        """Map dataset category to detector type."""
+        if not DETECTORS_AVAILABLE:
+            return "none"
+
+        mapping = {
+            "fan": "fan_rpm",
+            "drone_idle": "drone",
+            "drone_moving": "drone",
+        }
+        return mapping.get(category, "none")
+
     def _init_playback(self, dataset: Dataset) -> PlaybackState:
         """Load dataset and prepare playback state using LAZY windowing."""
         print(f"Loading {dataset.path}...")
@@ -178,8 +231,8 @@ class MVPLauncher:
             print(f"Resolution: {width}x{height}, "
                   f"Duration: {(t_max - t_min) / 1e6:.2f}s")
 
-            # Determine detector type (will be implemented in Phase 3)
-            detector_type = "none"  # TODO: Add _map_detector_type in Task 7
+            # Determine detector type
+            detector_type = self._map_detector_type(dataset.category)
             print(f"Detector: {detector_type}")
 
             return PlaybackState(
@@ -467,7 +520,36 @@ class MVPLauncher:
         # Render base polarity frame
         frame = self._render_polarity_frame(window, state.width, state.height)
 
-        # TODO: Add detector overlays in Phase 3
+        # Apply detector overlays if enabled AND available
+        if state.overlay_flags.get("detector", True) and DETECTORS_AVAILABLE:
+            try:
+                if state.detector_type == "fan_rpm":
+                    detection = detect_fan(
+                        window,
+                        state.width,
+                        state.height,
+                        state.window_us,
+                        state.prev_fan_params,
+                    )
+                    state.prev_fan_params = (detection.cx, detection.cy,
+                                              detection.a, detection.b, detection.phi)
+                    frame = render_fan_overlay(frame, detection)
+
+                elif state.detector_type == "drone":
+                    detection = detect_drone(window, state.width, state.height)
+                    frame = render_drone_overlay(frame, detection)
+
+            except Exception as e:
+                # Detector crashed - disable overlays and show warning
+                print(f"Detector error: {e}", file=sys.stderr)
+                state.overlay_flags["detector"] = False
+                cv2.putText(frame, "Detector disabled (error)", (10, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
+
+        elif state.overlay_flags.get("detector", True) and not DETECTORS_AVAILABLE:
+            # Show warning that detectors aren't available
+            cv2.putText(frame, "Detectors not available", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 128, 255), 2, cv2.LINE_AA)
 
         # Draw HUD
         now = time.perf_counter()
