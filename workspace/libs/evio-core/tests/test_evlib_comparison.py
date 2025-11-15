@@ -1,4 +1,17 @@
-"""Comparison tests between evlib and legacy loaders."""
+"""Comparison tests between evlib and legacy loaders.
+
+IMPORTANT: The .raw files in evio/data are NOT conversions of legacy .dat files.
+They are independent IDS camera recordings from Nov 2025 with different:
+- Resolution (2040×1793 actual vs 1280×720)
+- Duration (682-717 sec vs 9-24 sec)
+- Event counts (30-73M vs 26-64M)
+- Polarity encoding (broken: 0 OFF events)
+
+See docs/plans/2025-11-16-legacy-dat-to-evlib-export.md for details.
+
+To test legacy parity, we export legacy .dat → HDF5 → evlib, ensuring
+both loaders see the SAME recording.
+"""
 
 from __future__ import annotations
 
