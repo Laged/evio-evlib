@@ -140,6 +140,22 @@ If we want evlib to read the custom `.dat` files directly, we would need to upst
 
 ---
 
+## Experimental: IDS Camera Recordings
+
+The repository contains .raw files from IDS Imaging cameras (Nov 2025) in EVT3 format.
+These are **separate recordings** from different hardware, not conversions of legacy .dat files.
+
+**Key differences from legacy data:**
+- Resolution: Header claims 1280×720, events span ~2040×1793
+- Duration: 682-717 seconds (vs 9-24 seconds for legacy)
+- Polarity: All show 0 OFF events (encoding issue)
+
+**Usage:** Experimental evlib testing only. NOT for legacy parity validation.
+
+See `docs/data/datasets.md` for complete manifest.
+
+---
+
 ## 4. Recommendations
 
 1. **Do not commit the large `.dat`/`.raw` files** to Git unless we adopt Git LFS or an artifact host; keep instructions in `docs/setup.md`/`NEXT_STEPS.md` for fetching them.
