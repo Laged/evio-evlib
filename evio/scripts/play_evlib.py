@@ -6,14 +6,11 @@ the legacy DatFileSource, demonstrating the evlib integration path.
 
 import argparse
 import time
-from pathlib import Path
 
 import cv2
 import evlib
 import numpy as np
 import polars as pl
-
-from evio.core.pacer import Pacer, BatchRange
 
 
 def load_evt3_file(path: str) -> tuple[pl.DataFrame, int, int]:
