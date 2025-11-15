@@ -27,11 +27,18 @@
             # System libraries
             pkgs.opencv4            # OpenCV for visualization
             pkgs.zlib               # Required by some Rust packages
+            pkgs.hdf5               # Required by evlib
           ];
 
-          # Set LD_LIBRARY_PATH for Rust-backed libraries (evlib)
+          # Set library paths for Rust-backed libraries (evlib)
+          # Use DYLD_LIBRARY_PATH on macOS to override hardcoded homebrew paths
           LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [
             pkgs.stdenv.cc.cc.lib
+            pkgs.zlib
+            pkgs.hdf5
+          ]}";
+          DYLD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [
+            pkgs.hdf5
             pkgs.zlib
           ]}";
 
