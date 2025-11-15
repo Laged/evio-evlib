@@ -71,8 +71,9 @@ def propeller_mask_from_frame(
     candidates: List[Tuple[int, int, float, float, float, float]] = []
 
     for cnt in contours:
-        # fitEllipse needs at least 5 points
-        if len(cnt) < 5:
+        # fitEllipse needs at least 5 points, but use 50 to match legacy implementation
+        # and prevent fitting ellipses to noise
+        if len(cnt) < 50:
             continue
 
         area = cv2.contourArea(cnt)
@@ -89,6 +90,9 @@ def propeller_mask_from_frame(
         # angle_deg is in [0, 180) from OpenCV
         # We want ellipses near 0° or 180° (horizontal), NOT 90° (vertical)
         # Reject if too close to vertical (90°)
+        #
+        # NOTE: This fixes a bug in the legacy implementation which incorrectly
+        # kept vertical ellipses (70-110°) but should keep horizontal (0°/180°)
         if 90.0 - horizontal_tolerance < angle_deg < 90.0 + horizontal_tolerance:
             continue  # Reject vertical-ish ellipses
 
