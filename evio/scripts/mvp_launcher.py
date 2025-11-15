@@ -344,18 +344,181 @@ class MVPLauncher:
 
         return True
 
+    def _get_event_window(
+        self,
+        lazy_events: pl.LazyFrame,
+        win_start_us: int,
+        win_end_us: int,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Extract window of events using LAZY polars filtering.
+
+        CRITICAL: This uses lazy_events.filter().collect() to collect ONLY the window,
+        NOT the full dataset. This prevents OOM on large files.
+        """
+        # Peek at schema to determine time column type
+        schema = lazy_events.schema
+        t_dtype = schema["t"]
+
+        # Apply filter lazily, then collect ONLY the filtered window
+        if isinstance(t_dtype, pl.Duration):
+            # Convert microseconds to Duration
+            window = lazy_events.filter(
+                (pl.col("t") >= pl.duration(microseconds=win_start_us)) &
+                (pl.col("t") < pl.duration(microseconds=win_end_us))
+            ).collect()  # Collect ONLY the filtered window
+        else:
+            # Direct integer filtering
+            window = lazy_events.filter(
+                (pl.col("t") >= win_start_us) &
+                (pl.col("t") < win_end_us)
+            ).collect()  # Collect ONLY the filtered window
+
+        if len(window) == 0:
+            return (
+                np.array([], dtype=np.int32),
+                np.array([], dtype=np.int32),
+                np.array([], dtype=bool),
+            )
+
+        x_coords = window["x"].to_numpy().astype(np.int32)
+        y_coords = window["y"].to_numpy().astype(np.int32)
+        polarity_values = window["polarity"].to_numpy()
+        polarities_on = polarity_values > 0
+
+        return x_coords, y_coords, polarities_on
+
+    def _render_polarity_frame(
+        self,
+        window: tuple[np.ndarray, np.ndarray, np.ndarray],
+        width: int,
+        height: int,
+    ) -> np.ndarray:
+        """Render polarity events to frame."""
+        x_coords, y_coords, polarities_on = window
+
+        # Base gray, white for ON, black for OFF
+        frame = np.full((height, width, 3), (127, 127, 127), dtype=np.uint8)
+
+        if len(x_coords) > 0:
+            frame[y_coords[polarities_on], x_coords[polarities_on]] = (255, 255, 255)
+            frame[y_coords[~polarities_on], x_coords[~polarities_on]] = (0, 0, 0)
+
+        return frame
+
+    def _draw_hud(
+        self,
+        frame: np.ndarray,
+        state: PlaybackState,
+        fps: float,
+        wall_start: float,
+    ) -> None:
+        """Draw HUD overlay on frame (bottom-right)."""
+        if not state.overlay_flags.get("hud", True):
+            return
+
+        h, w = frame.shape[:2]
+
+        # Semi-transparent panel background
+        panel_w, panel_h = 280, 100
+        panel_x, panel_y = w - panel_w - 10, h - panel_h - 10
+
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (panel_x, panel_y),
+                      (panel_x + panel_w, panel_y + panel_h),
+                      (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # Text content
+        wall_time_s = time.perf_counter() - wall_start
+        rec_time_s = (state.current_t - state.t_min) / 1e6
+
+        lines = [
+            f"FPS: {fps:.1f}",
+            f"Speed: {state.speed:.2f}x",
+            f"Recording: {rec_time_s:.2f}s",
+            f"Dataset: {state.dataset.category}",
+        ]
+
+        y_offset = panel_y + 25
+        for line in lines:
+            cv2.putText(frame, line, (panel_x + 10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255),
+                        1, cv2.LINE_AA)
+            y_offset += 22
+
     def _playback_loop(self) -> bool:
         """Playback mode loop. Returns False to exit app."""
         if self.playback_state is None:
             self.mode = AppMode.MENU
             return True
 
-        # TODO: Implement in Task 5 (Phase 2)
-        # For now, just return to menu to prove init worked
-        print("\nPlayback initialized successfully!")
-        print("Returning to menu (full playback in Task 5)...")
-        self.mode = AppMode.MENU
-        self.playback_state = None
+        state = self.playback_state
+
+        # Track wall time for FPS and speed control
+        if not hasattr(self, '_playback_wall_start'):
+            self._playback_wall_start = time.perf_counter()
+            self._last_frame_time = self._playback_wall_start
+            self._fps = 0.0
+
+        # Extract events for current window
+        win_end = min(state.current_t + state.window_us, state.t_max)
+        window = self._get_event_window(state.lazy_events, state.current_t, win_end)
+
+        # Render base polarity frame
+        frame = self._render_polarity_frame(window, state.width, state.height)
+
+        # TODO: Add detector overlays in Phase 3
+
+        # Draw HUD
+        now = time.perf_counter()
+        frame_delta = now - self._last_frame_time
+        if frame_delta > 0:
+            self._fps = 0.9 * self._fps + 0.1 * (1.0 / frame_delta)
+        self._last_frame_time = now
+
+        self._draw_hud(frame, state, self._fps, self._playback_wall_start)
+
+        # Display
+        cv2.imshow(self.window_name, frame)
+
+        # Handle input with 1ms waitKey for responsiveness (critical-fixes.md section 4)
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord('q'):
+            return False  # Quit app
+        elif key == 27:  # ESC
+            print("\nReturning to menu...")
+            self.mode = AppMode.MENU
+            self.playback_state = None
+            if hasattr(self, '_playback_wall_start'):
+                delattr(self, '_playback_wall_start')
+            return True
+        elif key == ord('1'):
+            state.overlay_flags["detector"] = not state.overlay_flags["detector"]
+            print(f"Detector overlay: {'ON' if state.overlay_flags['detector'] else 'OFF'}")
+        elif key == ord('2'):
+            state.overlay_flags["hud"] = not state.overlay_flags["hud"]
+            print(f"HUD: {'ON' if state.overlay_flags['hud'] else 'OFF'}")
+        elif key == ord('h') or key == ord('H'):
+            state.overlay_flags["help"] = not state.overlay_flags["help"]
+            print(f"Help: {'ON' if state.overlay_flags['help'] else 'OFF'}")
+
+        # Advance time
+        state.current_t += state.window_us
+
+        # Auto-loop at end
+        if state.current_t >= state.t_max:
+            state.current_t = state.t_min
+            self._playback_wall_start = time.perf_counter()
+            print("Auto-looping to start...")
+
+        # Speed control (simple sleep-based)
+        expected_wall_time = (state.current_t - state.t_min) / (1e6 * state.speed)
+        actual_wall_time = time.perf_counter() - self._playback_wall_start
+        sleep_time = expected_wall_time - actual_wall_time
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+
         return True
 
 
