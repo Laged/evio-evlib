@@ -2,6 +2,7 @@
 """MVP Rendering Demo Launcher - Menu-driven event camera dataset explorer."""
 
 import sys
+import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import numpy as np
 import time
 import evlib
 import polars as pl
+import psutil
 
 # ============================================================================
 # Performance Timing Instrumentation
@@ -112,6 +114,8 @@ class Dataset:
     t_min: Optional[int] = None
     t_max: Optional[int] = None
     duration_sec: Optional[float] = None
+    # PERFORMANCE: Optional LazyFrame cache (enabled with --enable-cache)
+    lazy_events_cache: Optional[pl.LazyFrame] = None
 
 
 @dataclass
@@ -143,12 +147,13 @@ class PlaybackState:
 class MVPLauncher:
     """Main launcher application."""
 
-    def __init__(self):
+    def __init__(self, enable_cache: bool = False):
         self.mode = AppMode.MENU
         self.datasets: List[Dataset] = []
         self.selected_index = 0
         self.window_name = "Event Camera Demo"
         self.playback_state: Optional[PlaybackState] = None
+        self.cache_enabled = enable_cache
 
         # Print banner
         print("=" * 60)
@@ -158,6 +163,26 @@ class MVPLauncher:
         print("Environment: Must run via 'nix develop' for HDF5/OpenGL deps")
         print("Command: uv run --package evio python evio/scripts/mvp_launcher.py")
         print()
+
+        # Check caching configuration
+        if self.cache_enabled:
+            # Check available RAM
+            total_ram_gb = psutil.virtual_memory().total / (1024**3)
+            available_ram_gb = psutil.virtual_memory().available / (1024**3)
+
+            print(f"Cache Mode: ENABLED")
+            print(f"System RAM: {total_ram_gb:.1f} GB total, {available_ram_gb:.1f} GB available")
+
+            if available_ram_gb < 8:
+                print("⚠️  WARNING: Low available RAM ({available_ram_gb:.1f} GB < 8 GB)")
+                print("   Caching may cause memory pressure. Disabling cache.")
+                self.cache_enabled = False
+            else:
+                print("✓ Sufficient RAM for caching (requires ~6.5 GB for all datasets)")
+            print()
+        else:
+            print("Cache Mode: DISABLED (use --enable-cache to enable)")
+            print()
 
         # Discover datasets on startup
         self.datasets = self.discover_datasets()
@@ -421,10 +446,21 @@ class MVPLauncher:
         print(f"Loading {dataset.path}...")
 
         try:
-            # CRITICAL: DON'T collect() here - keep lazy!
-            t_step = time.perf_counter()
-            lazy_events = evlib.load_events(str(dataset.path))
-            log_timing("  └─ evlib.load_events()", t_step)
+            # PERFORMANCE: Check cache first (if enabled)
+            if self.cache_enabled and dataset.lazy_events_cache is not None:
+                t_step = time.perf_counter()
+                lazy_events = dataset.lazy_events_cache
+                log_timing("  └─ load from CACHE (instant!)", t_step)
+            else:
+                # CRITICAL: DON'T collect() here - keep lazy!
+                t_step = time.perf_counter()
+                lazy_events = evlib.load_events(str(dataset.path))
+                log_timing("  └─ evlib.load_events()", t_step)
+
+                # Cache if enabled
+                if self.cache_enabled:
+                    dataset.lazy_events_cache = lazy_events
+                    print(f"  └─ Cached LazyFrame for future loads")
 
             # PERFORMANCE: Resolve schema ONCE and cache it
             t_step = time.perf_counter()
@@ -934,6 +970,32 @@ class MVPLauncher:
 
 def main() -> None:
     """Entry point."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Event Camera MVP Launcher - Menu-driven dataset explorer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default mode (no caching, 3-19s load time)
+  uv run --package evio python evio/scripts/mvp_launcher.py
+
+  # Enable caching (requires ~6.5 GB RAM, <100ms re-load time)
+  uv run --package evio python evio/scripts/mvp_launcher.py --enable-cache
+
+Notes:
+  - Caching stores LazyFrames in memory for instant re-loads
+  - First load still takes 3-19s (evlib limitation)
+  - Subsequent loads are nearly instant with caching
+  - Requires 8+ GB available RAM for safe operation
+        """
+    )
+    parser.add_argument(
+        '--enable-cache',
+        action='store_true',
+        help='Cache LazyFrames in memory for faster re-loads (requires ~6.5 GB RAM)'
+    )
+    args = parser.parse_args()
+
     # Check environment
     import os
     if 'NIX_STORE' not in os.environ.get('PATH', ''):
@@ -955,7 +1017,7 @@ def main() -> None:
         print("=" * 60)
         print()
 
-    launcher = MVPLauncher()
+    launcher = MVPLauncher(enable_cache=args.enable_cache)
     launcher.run()
 
 

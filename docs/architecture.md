@@ -19,6 +19,16 @@ Transform evio into a **collaborative, production-ready event camera detection p
 
 ---
 
+## Current Runnable Experiences (truth in delivery)
+- **`run-mvp-demo`** (Nix alias): menu-driven UI (`evio/scripts/mvp_launcher.py`) that wraps detectors/datasets, uses evlib-backed detector utilities, launches OpenCV playback with overlays.
+- **`run-fan-rpm-demo` / `run-drone-detector-demo`**: evlib + Polars CLI demos (two-pass ellipse + DBSCAN pipelines) on legacy HDF5 exports.
+- **Legacy players**: `run-demo-fan`, `run-demo-fan-ev3`, MVP1/2 scripts for reference.
+- **Still planned**: plugin-based `detector-ui` and unified `evio-core` package; live stream adapter.
+
+Use `nix develop` to access these aliases.
+
+---
+
 ## Design Principles
 
 1. **Start Small, Scale Smart**: Begin with minimal PoC, expand to production features
