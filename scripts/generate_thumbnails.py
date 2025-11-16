@@ -154,6 +154,77 @@ def resize_with_letterbox(
     return letterboxed
 
 
+def generate_thumbnail(
+    h5_path: Path,
+    force: bool = False,
+) -> Path | None:
+    """Generate thumbnail for a single dataset.
+
+    Args:
+        h5_path: Path to *_legacy.h5 file
+        force: If True, regenerate even if thumbnail exists
+
+    Returns:
+        Path to generated PNG, or None if failed
+    """
+    # Determine output path
+    cache_dir = Path("evio/data/.cache/thumbnails")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Output filename: remove "_legacy" suffix
+    output_name = h5_path.stem.replace("_legacy", "") + ".png"
+    output_path = cache_dir / output_name
+
+    # Skip if exists and not forcing
+    if output_path.exists() and not force:
+        print(f"  ⏭️  Skipping {h5_path.name} (thumbnail exists)")
+        return output_path
+
+    try:
+        # Load dataset metadata (lazy - no full collect!)
+        lazy_events = evlib.load_events(str(h5_path))
+        width, height, t_min, t_max = extract_metadata(lazy_events)
+
+        # Render first 1 second window (1,000,000 microseconds)
+        window_end = min(t_min + 1_000_000, t_max)
+
+        # Filter and collect ONLY the window
+        schema = lazy_events.schema
+        t_dtype = schema["t"]
+
+        if isinstance(t_dtype, pl.Duration):
+            window = lazy_events.filter(
+                (pl.col("t") >= pl.duration(microseconds=t_min)) &
+                (pl.col("t") < pl.duration(microseconds=window_end))
+            ).collect()
+        else:
+            window = lazy_events.filter(
+                (pl.col("t") >= t_min) &
+                (pl.col("t") < window_end)
+            ).collect()
+
+        # Extract event data
+        x_coords = window["x"].to_numpy().astype(np.int32)
+        y_coords = window["y"].to_numpy().astype(np.int32)
+        polarities = window["polarity"].to_numpy()
+
+        # Render polarity frame
+        frame = render_polarity_frame(x_coords, y_coords, polarities, width, height)
+
+        # Resize to 300x150 with letterboxing
+        thumbnail = resize_with_letterbox(frame, target_w=300, target_h=150)
+
+        # Save PNG
+        cv2.imwrite(str(output_path), thumbnail)
+
+        print(f"  ✅ Generated {output_name} ({len(x_coords):,} events, {width}x{height})")
+        return output_path
+
+    except Exception as e:
+        print(f"  ❌ Failed to generate {h5_path.name}: {e}", file=sys.stderr)
+        return None
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -182,10 +253,44 @@ def main() -> int:
     print(f"Found {len(datasets)} dataset(s)")
     print()
 
-    # TODO: Generate thumbnails
-    print("TODO: Thumbnail generation not yet implemented")
+    # Generate thumbnails
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
 
-    return 0
+    for i, dataset_path in enumerate(datasets, 1):
+        print(f"[{i}/{len(datasets)}] {dataset_path.name}")
+
+        # Check if thumbnail exists before attempting generation
+        cache_dir = Path("evio/data/.cache/thumbnails")
+        output_name = dataset_path.stem.replace("_legacy", "") + ".png"
+        output_path = cache_dir / output_name
+        already_exists = output_path.exists()
+
+        result = generate_thumbnail(dataset_path, force=args.force)
+
+        if result is None:
+            fail_count += 1
+        elif already_exists and not args.force:
+            skip_count += 1
+        else:
+            success_count += 1
+
+    # Summary
+    print()
+    print("=" * 60)
+    print("  Summary")
+    print("=" * 60)
+    if success_count > 0:
+        print(f"✅ Generated: {success_count}")
+    if skip_count > 0:
+        print(f"⏭️  Skipped: {skip_count} (already exist)")
+    if fail_count > 0:
+        print(f"❌ Failed: {fail_count}")
+    print()
+    print(f"Thumbnails saved to: evio/data/.cache/thumbnails/")
+
+    return 0 if fail_count == 0 else 1
 
 
 if __name__ == '__main__':
