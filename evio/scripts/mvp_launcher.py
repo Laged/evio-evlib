@@ -147,13 +147,15 @@ class PlaybackState:
 class MVPLauncher:
     """Main launcher application."""
 
-    def __init__(self, enable_cache: bool = False):
+    def __init__(self, enable_cache: bool = False, skip_frames: bool = False):
         self.mode = AppMode.MENU
         self.datasets: List[Dataset] = []
         self.selected_index = 0
         self.window_name = "Event Camera Demo"
         self.playback_state: Optional[PlaybackState] = None
         self.cache_enabled = enable_cache
+        self.skip_frames = skip_frames
+        self.frame_count = 0  # For frame skipping logic
 
         # Print banner
         print("=" * 60)
@@ -182,6 +184,15 @@ class MVPLauncher:
             print()
         else:
             print("Cache Mode: DISABLED (use --enable-cache to enable)")
+            print()
+
+        # Check frame skipping configuration
+        if self.skip_frames:
+            print("Frame Skipping: ENABLED")
+            print("✓ High-speed playback optimized (render ~60 FPS, process at full speed)")
+            print()
+        else:
+            print("Frame Skipping: DISABLED (use --skip-frames for high-speed playback)")
             print()
 
         # Discover datasets on startup
@@ -952,12 +963,28 @@ class MVPLauncher:
         if state.overlay_flags.get("help", False):
             self._draw_help_overlay(frame)
 
-        # Display
-        t_step = time.perf_counter()
-        cv2.imshow(self.window_name, frame)
-        if self._first_frame:
-            log_timing("  └─ cv2.imshow() [first frame]", t_step)
-            log_timing("TOTAL First Frame Render", t_first_frame_start)
+        # Frame skipping for high-speed playback
+        # When enabled, only render every Nth frame to maintain ~60 FPS display
+        # while processing at full speed
+        should_render = True
+        if self.skip_frames:
+            # Calculate skip interval based on speed
+            # Target: ~60 FPS display regardless of processing speed
+            if state.speed > 10:
+                skip_interval = max(1, int(state.speed / 2))  # e.g., 100x speed -> skip 50 frames
+            else:
+                skip_interval = 1  # No skipping at low speeds
+
+            should_render = (self.frame_count % skip_interval == 0)
+            self.frame_count += 1
+
+        # Display (only if should_render or frame skipping disabled)
+        if should_render or not self.skip_frames:
+            t_step = time.perf_counter()
+            cv2.imshow(self.window_name, frame)
+            if self._first_frame:
+                log_timing("  └─ cv2.imshow() [first frame]", t_step)
+                log_timing("TOTAL First Frame Render", t_first_frame_start)
 
         # Handle input with 1ms waitKey for responsiveness (critical-fixes.md section 4)
         key = cv2.waitKey(1) & 0xFF
@@ -1072,6 +1099,11 @@ Notes:
         action='store_true',
         help='Cache LazyFrames in memory for faster re-loads (requires ~6.5 GB RAM)'
     )
+    parser.add_argument(
+        '--skip-frames',
+        action='store_true',
+        help='Enable frame skipping for high-speed playback (maintains ~60 FPS display)'
+    )
     args = parser.parse_args()
 
     # Check environment
@@ -1095,7 +1127,7 @@ Notes:
         print("=" * 60)
         print()
 
-    launcher = MVPLauncher(enable_cache=args.enable_cache)
+    launcher = MVPLauncher(enable_cache=args.enable_cache, skip_frames=args.skip_frames)
     launcher.run()
 
 
