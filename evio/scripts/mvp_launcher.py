@@ -14,6 +14,18 @@ import evlib
 import polars as pl
 
 # ============================================================================
+# Performance Timing Instrumentation
+# ============================================================================
+# Enable to debug performance bottlenecks
+ENABLE_TIMING = True
+
+def log_timing(label: str, start_time: float) -> None:
+    """Log timing information if ENABLE_TIMING is True."""
+    if ENABLE_TIMING:
+        elapsed = (time.perf_counter() - start_time) * 1000  # ms
+        print(f"⏱️  {label}: {elapsed:.1f}ms")
+
+# ============================================================================
 # Color Palette: Sensofusion Military Gray + Y2K Pink Accents
 # ============================================================================
 # All colors in BGR format (OpenCV convention)
@@ -410,10 +422,14 @@ class MVPLauncher:
 
         try:
             # CRITICAL: DON'T collect() here - keep lazy!
+            t_step = time.perf_counter()
             lazy_events = evlib.load_events(str(dataset.path))
+            log_timing("  └─ evlib.load_events()", t_step)
 
             # PERFORMANCE: Resolve schema ONCE and cache it
+            t_step = time.perf_counter()
             schema = lazy_events.collect_schema()
+            log_timing("  └─ collect_schema()", t_step)
 
             # PERFORMANCE: Use cached metadata if available (Option B optimization)
             if dataset.width is not None:
@@ -425,12 +441,14 @@ class MVPLauncher:
                 print(f"Using cached metadata: {width}x{height}, {dataset.duration_sec:.2f}s")
             else:
                 # First load: Extract and cache metadata
+                t_step = time.perf_counter()
                 metadata = lazy_events.select([
                     pl.col("x").max().alias("max_x"),
                     pl.col("y").max().alias("max_y"),
                     pl.col("t").min().alias("t_min"),
                     pl.col("t").max().alias("t_max"),
                 ]).collect()
+                log_timing("  └─ extract metadata (aggregation)", t_step)
 
                 width = int(metadata["max_x"][0]) + 1
                 height = int(metadata["max_y"][0]) + 1
@@ -595,11 +613,19 @@ class MVPLauncher:
         # Handle selection
         elif key == 13 or key == ord(' '):  # Enter or Space
             if self.datasets:
+                t_start_transition = time.perf_counter()
                 selected_dataset = self.datasets[self.selected_index]
                 print(f"\nSelected: {selected_dataset.name}")
                 try:
+                    t_start_init = time.perf_counter()
                     self.playback_state = self._init_playback(selected_dataset)
+                    log_timing("Total _init_playback()", t_start_init)
+
+                    t_start_mode_switch = time.perf_counter()
                     self.mode = AppMode.PLAYBACK
+                    log_timing("Mode switch to PLAYBACK", t_start_mode_switch)
+
+                    log_timing("TOTAL Enter → Playback Ready", t_start_transition)
                 except Exception as e:
                     error_msg = f"Failed to load dataset: {str(e)}"
                     print(error_msg, file=sys.stderr)
@@ -796,10 +822,20 @@ class MVPLauncher:
             self._playback_wall_start = time.perf_counter()
             self._last_frame_time = self._playback_wall_start
             self._fps = 0.0
+            self._first_frame = True
+        else:
+            self._first_frame = False
+
+        # Track first frame rendering time
+        if self._first_frame:
+            t_first_frame_start = time.perf_counter()
 
         # Extract events for current window
+        t_step = time.perf_counter()
         win_end = min(state.current_t + state.window_us, state.t_max)
         window = self._get_event_window(state.lazy_events, state.schema, state.current_t, win_end)
+        if self._first_frame:
+            log_timing("  └─ get_event_window() [first frame]", t_step)
 
         # Render base polarity frame
         frame = self._render_polarity_frame(window, state.width, state.height)
@@ -849,7 +885,11 @@ class MVPLauncher:
             self._draw_help_overlay(frame)
 
         # Display
+        t_step = time.perf_counter()
         cv2.imshow(self.window_name, frame)
+        if self._first_frame:
+            log_timing("  └─ cv2.imshow() [first frame]", t_step)
+            log_timing("TOTAL First Frame Render", t_first_frame_start)
 
         # Handle input with 1ms waitKey for responsiveness (critical-fixes.md section 4)
         key = cv2.waitKey(1) & 0xFF
