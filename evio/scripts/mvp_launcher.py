@@ -1029,12 +1029,17 @@ class MVPLauncher:
             print(f"Playback speed: {state.speed:.2f}x")
 
         # Event window size control (←/→ arrows)
-        # Smooth 10-step transition: 10μs -> 1ms, then coarser steps up to 100ms
-        # 10 steps: 10μs, 20μs, 50μs, 100μs, 200μs, 500μs, 1ms, 3ms, 10ms, 100ms
+        # Extended steps: 10μs -> 100ms with fine control in 1-10ms range
+        # Steps: 10μs, 20μs, 50μs, 100μs, 200μs, 500μs, 1.0ms, 1.5ms, 2.0ms, ..., 10.0ms, ..., 100ms
         elif key in (83, 2):  # Right arrow - larger window
             window_us = state.window_us
-            # Predefined smooth steps from 10μs to 100ms
-            steps = [10, 20, 50, 100, 200, 500, 1000, 3000, 10000, 100000]
+
+            # Predefined steps with 0.5ms increments from 1.0ms to 10.0ms
+            microsecond_steps = [10, 20, 50, 100, 200, 500]  # Sub-millisecond
+            fine_steps = [1000 + i*500 for i in range(19)]  # 1.0ms to 10.0ms in 0.5ms steps
+            coarse_steps = [15000, 20000, 30000, 50000, 100000]  # 15ms to 100ms
+
+            steps = microsecond_steps + fine_steps + coarse_steps
 
             # Find next larger step
             for step in steps:
@@ -1050,8 +1055,13 @@ class MVPLauncher:
                 print(f"Event window: {window_us/1000:.1f}ms")
         elif key in (81, 3):  # Left arrow - smaller window
             window_us = state.window_us
-            # Predefined smooth steps from 100ms to 10μs
-            steps = [100000, 10000, 3000, 1000, 500, 200, 100, 50, 20, 10]
+
+            # Reverse steps
+            microsecond_steps = [500, 200, 100, 50, 20, 10]  # Sub-millisecond (reversed)
+            fine_steps = [1000 + i*500 for i in range(18, -1, -1)]  # 10.0ms to 1.0ms in 0.5ms steps
+            coarse_steps = [100000, 50000, 30000, 20000, 15000]  # 100ms to 15ms
+
+            steps = coarse_steps + fine_steps + microsecond_steps
 
             # Find next smaller step
             for step in steps:
