@@ -209,7 +209,7 @@ class MVPLauncher:
         return width, height, t_min, t_max, duration_sec
 
     def discover_datasets(self) -> List[Dataset]:
-        """Scan evio/data/ for *_legacy.h5 files and extract metadata."""
+        """Scan evio/data/ for *_legacy.h5 files (metadata extracted lazily on load)."""
         data_dir = Path("evio/data")
         datasets = []
 
@@ -235,19 +235,14 @@ class MVPLauncher:
                 category = h5_file.parent.name
                 size_mb = h5_file.stat().st_size / (1024 * 1024)
 
-                # PERFORMANCE: Extract and cache metadata upfront
-                width, height, t_min, t_max, duration_sec = self._extract_metadata(h5_file)
-
+                # PERFORMANCE: Don't extract metadata upfront (too slow at startup)
+                # Metadata will be extracted on first load and cached in the Dataset object
                 datasets.append(Dataset(
                     path=h5_file,
                     name=name,
                     category=category,
                     size_mb=size_mb,
-                    width=width,
-                    height=height,
-                    t_min=t_min,
-                    t_max=t_max,
-                    duration_sec=duration_sec,
+                    # Leave metadata None - will be populated on first load
                 ))
             except Exception as e:
                 print(f"Warning: Failed to process {h5_file}: {e}", file=sys.stderr)
@@ -422,14 +417,14 @@ class MVPLauncher:
 
             # PERFORMANCE: Use cached metadata if available (Option B optimization)
             if dataset.width is not None:
-                # Metadata already cached from discovery
+                # Metadata already cached from previous load
                 width = dataset.width
                 height = dataset.height
                 t_min = dataset.t_min
                 t_max = dataset.t_max
                 print(f"Using cached metadata: {width}x{height}, {dataset.duration_sec:.2f}s")
             else:
-                # Fallback: Extract metadata (for backward compatibility)
+                # First load: Extract and cache metadata
                 metadata = lazy_events.select([
                     pl.col("x").max().alias("max_x"),
                     pl.col("y").max().alias("max_y"),
@@ -455,8 +450,16 @@ class MVPLauncher:
                     t_min = int(t_min_val)
                     t_max = int(t_max_val)
 
-                print(f"Resolution: {width}x{height}, "
-                      f"Duration: {(t_max - t_min) / 1e6:.2f}s")
+                duration_sec = (t_max - t_min) / 1e6
+
+                # Cache metadata back into Dataset object for next load
+                dataset.width = width
+                dataset.height = height
+                dataset.t_min = t_min
+                dataset.t_max = t_max
+                dataset.duration_sec = duration_sec
+
+                print(f"Resolution: {width}x{height}, Duration: {duration_sec:.2f}s")
 
             # Determine detector type
             detector_type = self._map_detector_type(dataset.category)
