@@ -285,8 +285,21 @@ class MVPLauncher:
                 print(f"Warning: Failed to process {h5_file}: {e}", file=sys.stderr)
                 continue
 
-        # Sort by category then name
-        datasets.sort(key=lambda d: (d.category, d.name))
+        # Sort by demo order: events, fan_const, fan_varying, fan_varying_turning, drone_idle, drone_moving
+        demo_order = {
+            "events": 0,
+            "fan const rpm": 1,
+            "fan varying rpm": 2,
+            "fan varying rpm turning": 3,
+            "drone idle": 4,
+            "drone moving": 5,
+        }
+
+        def sort_key(d):
+            # Use demo order if found, otherwise put at end (999)
+            return demo_order.get(d.name.lower(), 999)
+
+        datasets.sort(key=sort_key)
         return datasets
 
     def _load_thumbnail(self, dataset: Dataset) -> np.ndarray | None:
