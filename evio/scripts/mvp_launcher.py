@@ -1008,12 +1008,23 @@ class MVPLauncher:
             state.overlay_flags["help"] = not state.overlay_flags["help"]
             print(f"Help: {'ON' if state.overlay_flags['help'] else 'OFF'}")
 
-        # Playback speed control (↑/↓ arrows) - 25% steps from 0.25x to 100x
-        elif key in (82, 0):  # Up arrow
-            state.speed = min(state.speed + 0.25, 100.0)
+        # Playback speed control (↑/↓ arrows)
+        # Sensible steps: 0.25x, 0.5x, 1x, 2x, 5x, 10x, 20x, 50x, 100x
+        elif key in (82, 0):  # Up arrow - increase speed
+            speed_steps = [0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+            # Find next higher step
+            for step in speed_steps:
+                if state.speed < step:
+                    state.speed = step
+                    break
             print(f"Playback speed: {state.speed:.2f}x")
-        elif key in (84, 1):  # Down arrow
-            state.speed = max(state.speed - 0.25, 0.25)
+        elif key in (84, 1):  # Down arrow - decrease speed
+            speed_steps = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0, 0.5, 0.25]
+            # Find next lower step
+            for step in speed_steps:
+                if state.speed > step:
+                    state.speed = step
+                    break
             print(f"Playback speed: {state.speed:.2f}x")
 
         # Event window size control (←/→ arrows)
