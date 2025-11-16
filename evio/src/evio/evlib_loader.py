@@ -49,4 +49,20 @@ def load_events_with_evlib(
     # The format parameter is currently unused but reserved for future use
     events = evlib.load_events(path)
 
+    # evlib represents timestamps as Polars Duration, but callers expect raw
+    # microsecond integers. Normalize the dtype immediately after loading to
+    # preserve the legacy evio API contract.
+    try:
+        schema = events.collect_schema()
+        t_dtype = schema.get("t")
+    except AttributeError:
+        t_dtype = None
+
+    if t_dtype == pl.Duration("us"):
+        events = events.with_columns(
+            pl.col("t")
+            .dt.total_microseconds()
+            .cast(pl.Int64)
+            .alias("t")
+        )
     return events

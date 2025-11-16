@@ -1,19 +1,22 @@
-import pytest
-from pathlib import Path
-from evio.evlib_loader import load_events_with_evlib
+import importlib
+import sys
+import types
 from inspect import signature
-from typing import get_type_hints
+
 import polars as pl
+import pytest
+
+import evio.evlib_loader as evlib_loader
 
 
 def test_evlib_loader_exists():
     """Test that the loader function exists and is callable."""
-    assert callable(load_events_with_evlib)
+    assert callable(evlib_loader.load_events_with_evlib)
 
 
 def test_evlib_loader_signature():
     """Test the loader function has the correct signature."""
-    sig = signature(load_events_with_evlib)
+    sig = signature(evlib_loader.load_events_with_evlib)
     params = list(sig.parameters.keys())
 
     # Verify required parameters
@@ -28,7 +31,7 @@ def test_evlib_loader_signature():
 
 def test_evlib_loader_return_type():
     """Test the loader function has correct return type annotation."""
-    sig = signature(load_events_with_evlib)
+    sig = signature(evlib_loader.load_events_with_evlib)
 
     # Check return annotation is pl.LazyFrame
     assert sig.return_annotation == pl.LazyFrame, \
@@ -45,7 +48,7 @@ def test_evlib_loader_raises_import_error_when_evlib_missing():
     except ImportError:
         # Good - evlib is not installed, we can test the error
         with pytest.raises(ImportError, match="evlib is required but not installed"):
-            load_events_with_evlib("/nonexistent/path.dat")
+            evlib_loader.load_events_with_evlib("/nonexistent/path.dat")
 
 
 def test_evlib_loader_raises_file_not_found():
@@ -59,7 +62,27 @@ def test_evlib_loader_raises_file_not_found():
     # Test with a nonexistent file
     with pytest.raises((FileNotFoundError, RuntimeError, ValueError)):
         # evlib may raise different errors for missing files
-        result = load_events_with_evlib("/nonexistent/path/to/events.dat")
+        result = evlib_loader.load_events_with_evlib("/nonexistent/path/to/events.dat")
         # Force evaluation if it's a LazyFrame
         if isinstance(result, pl.LazyFrame):
             result.collect()
+
+
+def test_evlib_loader_normalizes_duration_to_int(monkeypatch):
+    """Loader should convert evlib Duration timestamps back to microsecond ints."""
+    duration_events = pl.DataFrame(
+        {
+            "t": pl.duration(microseconds=[0, 50_000]),
+            "x": [1, 2],
+            "y": [3, 4],
+            "polarity": [0, 1],
+        }
+    ).lazy()
+
+    fake_evlib = types.SimpleNamespace(load_events=lambda path: duration_events)
+    monkeypatch.setitem(sys.modules, "evlib", fake_evlib)
+
+    lazy_frame = evlib_loader.load_events_with_evlib("dummy.h5")
+    collected = lazy_frame.collect()
+    assert collected.schema["t"] == pl.Int64
+    assert collected["t"].to_list() == [0, 50_000]

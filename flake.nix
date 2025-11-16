@@ -318,13 +318,22 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "🎨 Data & Utils:"
             echo "  unzip-datasets                 # Extract local zip file"
             echo "  download-datasets              # DO NOT RUN - WE ALREADY DDOSSED SENSOFUSION SORRY"
+            echo "  unzip-checkpoints              # Extract RVT model checkpoints from rvt-models.zip"
             echo "  convert-legacy-dat-to-hdf5 <file>  # Single file conversion"
             echo "  convert-all-legacy-to-hdf5     # Batch convert all .dat files"
             echo "  generate-thumbnails            # Create/update menu thumbnails"
             echo ""
+            echo "🎯 RVT Detector Demos (experimental):"
+            echo "  run-detector <file> [--checkpoint PATH] [opts] : Run RVT detector on event data"
+            echo "  run-rvt-fan          : RVT detector on varying RPM turning fan"
+            echo "  run-rvt-drone        : RVT detector on moving drone"
+            echo "  NOTE: Pre-trained models may not work well on our data - requires custom training"
+            echo ""
 
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
+            alias unzip-checkpoints='./scripts/unzip-rvt-checkpoints.sh'
+            alias run-detector='./scripts/run-detector.sh'
             alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
             alias generate-thumbnails='uv run --package evio python scripts/generate_thumbnails.py'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
@@ -338,6 +347,8 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             alias run-drone-detector-demo='uv run drone-detector-demo evio/data/drone_idle/drone_idle_legacy.h5'
             alias run-fan-detector='uv run --package evio python evio/scripts/fan_detector_demo.py evio/data/fan/fan_const_rpm.dat'
             alias run-drone-detector='uv run --package evio python evio/scripts/drone_detector_demo.py evio/data/drone_idle/drone_idle.dat'
+            alias run-rvt-fan='./scripts/run-detector.sh evio/data/fan/fan_varying_rpm_turning_legacy.h5 --checkpoint workspace/plugins/rvt-detection/models/rvt-b-gen1.ckpt --experiment base'
+            alias run-rvt-drone='./scripts/run-detector.sh evio/data/drone_moving/drone_moving_legacy.h5 --checkpoint workspace/plugins/rvt-detection/models/rvt-b-1mpx.ckpt --dataset gen4 --experiment base'
 
             echo "Read .claude/skills/dev-environment.md for workflow guidelines"
             echo "=========================================="

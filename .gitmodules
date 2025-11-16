@@ -1,0 +1,3 @@
+[submodule "RVT"]
+	path = workspace/plugins/rvt-detection/RVT
+	url = https://github.com/uzh-rpg/RVT.git

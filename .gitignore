@@ -31,6 +31,14 @@ wheels/
 venv/
 .python-version
 
+# Environment variables (contains secrets)
+.env
+.env.*
+!.env.example
+
+# Claude Code local settings
+.claude/
+
 # IDEs
 .vscode/
 .idea/
@@ -51,7 +59,9 @@ result-*
 *.raw
 *.aedat
 *.h5
-evio/data/junction-sensofusion.zip
+
+# Large archives (distribute separately)
+*.zip
 
 # Thumbnail cache
 evio/data/.cache/
