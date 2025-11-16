@@ -221,6 +221,12 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
           exec ${pkgs.bash}/bin/bash scripts/convert_all_legacy_to_hdf5.sh
         '';
 
+        # Generate thumbnails script
+        generateThumbnailsScript = pkgs.writeShellScriptBin "generate-thumbnails" ''
+          set -euo pipefail
+          exec ${pkgs.uv}/bin/uv run --package evio python scripts/generate_thumbnails.py "$@"
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -235,6 +241,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             unzipDatasetsScript     # unzip-datasets command
             convertLegacyDatToHdf5Script # convert-legacy-dat-to-hdf5 command
             convertAllLegacyToHdf5Script # convert-all-legacy-to-hdf5 command
+            generateThumbnailsScript     # generate-thumbnails command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -315,6 +322,10 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "🧪 Testing:"
             echo "  run-evlib-tests      : Compare evlib vs legacy loader"
             echo ""
+            echo "🎨 Thumbnails:"
+            echo "  generate-thumbnails    : Generate PNG previews for launcher menu"
+            echo "  generate-thumbnails --force : Regenerate all thumbnails"
+            echo ""
             echo "🎯 Detector Demos:"
             echo "  run-mvp-demo           : MVP launcher (menu + detectors) - NEW!"
             echo "  run-fan-rpm-demo       : Fan RPM (evlib, detector-commons)"
@@ -338,6 +349,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
             alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
+            alias generate-thumbnails='uv run --package evio python scripts/generate_thumbnails.py'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
             alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_legacy.h5'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
