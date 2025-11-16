@@ -13,6 +13,32 @@ import time
 import evlib
 import polars as pl
 
+# ============================================================================
+# Color Palette: Sensofusion Military Gray + Y2K Pink Accents
+# ============================================================================
+# All colors in BGR format (OpenCV convention)
+
+# Menu colors
+BG_COLOR = (43, 43, 43)           # #2b2b2b - dark gray background
+TILE_COLOR = (58, 58, 58)         # #3a3a3a - tile default (fallback)
+TILE_SELECTED = (204, 102, 255)   # #ff66cc - pink Y2K accent
+TEXT_PRIMARY = (245, 245, 245)    # #f5f5f5 - white
+TEXT_SECONDARY = (192, 192, 192)  # #c0c0c0 - light gray
+OVERLAY_BAND = (0, 0, 0)          # Black (used with alpha=0.6)
+
+# Status bar
+STATUS_BAR_BG = (30, 30, 30)      # #1e1e1e - darker gray
+STATUS_TEXT = (200, 200, 200)     # Light gray
+
+# Playback HUD
+HUD_PANEL_BG = (0, 0, 0)          # Black (used with alpha=0.6)
+HUD_TEXT = (245, 245, 245)        # White
+
+# Help overlay
+HELP_BG = (30, 30, 30)            # Dark gray (used with alpha=0.8)
+HELP_TITLE = (245, 245, 245)      # White
+HELP_TEXT = (200, 200, 200)       # Light gray
+
 # Try to import detector utilities - degrade gracefully if missing
 try:
     # Try absolute import first (when running via uv run --package)
@@ -269,13 +295,13 @@ class MVPLauncher:
         """Render menu grid with text tiles."""
         if not self.datasets:
             # No datasets - show message
-            frame = np.full((480, 640, 3), (43, 43, 43), dtype=np.uint8)
+            frame = np.full((480, 640, 3), BG_COLOR, dtype=np.uint8)
             msg1 = "No datasets found"
             msg2 = "Run: convert-all-legacy-to-hdf5"
             cv2.putText(frame, msg1, (150, 200), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                        0.8, TEXT_PRIMARY, 2, cv2.LINE_AA)
             cv2.putText(frame, msg2, (100, 250), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6, (180, 180, 180), 1, cv2.LINE_AA)
+                        0.6, TEXT_SECONDARY, 1, cv2.LINE_AA)
             return frame
 
         # Grid parameters
@@ -289,7 +315,7 @@ class MVPLauncher:
         frame_height = rows * tile_height + (rows + 1) * margin + 60  # +60 for status bar
 
         # Dark gray background
-        frame = np.full((frame_height, frame_width, 3), (43, 43, 43), dtype=np.uint8)
+        frame = np.full((frame_height, frame_width, 3), BG_COLOR, dtype=np.uint8)
 
         # Draw tiles
         for i, dataset in enumerate(self.datasets):
@@ -302,10 +328,10 @@ class MVPLauncher:
             # Tile background color
             is_selected = (i == self.selected_index)
             if is_selected:
-                tile_color = (226, 144, 74)  # Blue accent (BGR: #4a90e2)
+                tile_color = TILE_SELECTED  # Pink Y2K accent
                 border_thickness = 3
             else:
-                tile_color = (64, 64, 64)  # Medium gray
+                tile_color = TILE_COLOR  # Medium gray
                 border_thickness = 1
 
             # Draw tile rectangle
@@ -320,8 +346,8 @@ class MVPLauncher:
 
             # Draw text (centered)
             # Line 1: Dataset name (white, larger)
-            text_color = (255, 255, 255)
-            meta_color = (180, 180, 180)
+            text_color = TEXT_PRIMARY
+            meta_color = TEXT_SECONDARY
 
             name_text = dataset.name
             name_size = cv2.getTextSize(name_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
@@ -341,13 +367,13 @@ class MVPLauncher:
         # Draw status bar at bottom
         status_y = frame_height - 30
         cv2.rectangle(frame, (0, status_y), (frame_width, frame_height),
-                      (30, 30, 30), -1)
+                      STATUS_BAR_BG, -1)
 
         status_text = "↑/↓/j/k: Navigate | Enter/Space: Play | Q/ESC: Quit"
         status_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
         status_x = (frame_width - status_size[0]) // 2
         cv2.putText(frame, status_text, (status_x, status_y + 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, STATUS_TEXT, 1, cv2.LINE_AA)
 
         return frame
 
@@ -478,7 +504,7 @@ class MVPLauncher:
         overlay = frame.copy()
         cv2.rectangle(overlay, (panel_x, panel_y),
                       (panel_x + panel_w, panel_y + panel_h),
-                      (0, 0, 0), -1)
+                      HUD_PANEL_BG, -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
         # Text content
@@ -495,7 +521,7 @@ class MVPLauncher:
         y_offset = panel_y + 25
         for line in lines:
             cv2.putText(frame, line, (panel_x + 10, y_offset),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, HUD_TEXT,
                         1, cv2.LINE_AA)
             y_offset += 22
 
@@ -506,7 +532,7 @@ class MVPLauncher:
         # Semi-transparent overlay (bottom third)
         overlay_h = h // 3
         overlay = frame.copy()
-        cv2.rectangle(overlay, (0, h - overlay_h), (w, h), (30, 30, 30), -1)
+        cv2.rectangle(overlay, (0, h - overlay_h), (w, h), HELP_BG, -1)
         cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
 
         # Help text
@@ -524,7 +550,7 @@ class MVPLauncher:
         for i, line in enumerate(help_lines):
             font_scale = 0.7 if i == 0 else 0.5
             thickness = 2 if i == 0 else 1
-            color = (255, 255, 255) if i == 0 else (200, 200, 200)
+            color = HELP_TITLE if i == 0 else HELP_TEXT
 
             cv2.putText(frame, line, (30, y_start + i * 30),
                         cv2.FONT_HERSHEY_SIMPLEX, font_scale, color,
@@ -532,7 +558,7 @@ class MVPLauncher:
 
     def _show_error_and_return_to_menu(self, error_msg: str) -> None:
         """Show error message for 3 seconds then return to menu."""
-        frame = np.full((480, 640, 3), (30, 30, 30), dtype=np.uint8)
+        frame = np.full((480, 640, 3), HELP_BG, dtype=np.uint8)
 
         # Error title
         cv2.putText(frame, "ERROR", (270, 200),
@@ -556,7 +582,7 @@ class MVPLauncher:
         y = 250
         for line in lines[:4]:  # Max 4 lines
             cv2.putText(frame, line, (30, y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, HELP_TEXT, 1, cv2.LINE_AA)
             y += 30
 
         # Show for 3 seconds
