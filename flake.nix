@@ -221,6 +221,12 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
           exec ${pkgs.bash}/bin/bash scripts/convert_all_legacy_to_hdf5.sh
         '';
 
+        # Generate thumbnails script
+        generateThumbnailsScript = pkgs.writeShellScriptBin "generate-thumbnails" ''
+          set -euo pipefail
+          exec ${pkgs.uv}/bin/uv run --package evio python scripts/generate_thumbnails.py "$@"
+        '';
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -235,6 +241,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             unzipDatasetsScript     # unzip-datasets command
             convertLegacyDatToHdf5Script # convert-legacy-dat-to-hdf5 command
             convertAllLegacyToHdf5Script # convert-all-legacy-to-hdf5 command
+            generateThumbnailsScript     # generate-thumbnails command
 
             # Rust toolchain (for evlib compilation)
             pkgs.rustc
@@ -266,81 +273,69 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
           ]}";
 
           shellHook = ''
-            echo "=========================================="
-            echo "  Event Camera Detection Workbench"
-            echo "=========================================="
+            echo ""
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║                                                            ║"
+            echo "║          Hello! #weUseNixBtw                               ║"
+            echo "║          Event Camera Detection Workbench                  ║"
+            echo "║                                                            ║"
+            echo "║  Real-time microsecond-scale event camera processing       ║"
+            echo "║  for drone detection                                       ║"
+            echo "║  (it works on our machines - maybe yours)                  ║"
+            echo "║                                                            ║"
+            echo "╚════════════════════════════════════════════════════════════╝"
             echo ""
             export QT_QPA_PLATFORM="xcb"
-            echo "Python: $(python --version)"
-            echo "UV: $(uv --version)"
-            echo ""
 
             # Create workspace structure if missing
             if [ ! -d workspace ]; then
-              echo "Creating workspace structure..."
               mkdir -p workspace/libs workspace/plugins workspace/apps
             fi
 
             # Check if workspace needs initialization
             if [ ! -d .venv ]; then
               if [ ! -d workspace/libs/evio-core ]; then
-                echo "⚠️  Workspace members not found. This appears to be initial setup."
-                echo "    See docs/setup.md for workspace initialization steps."
+                echo "⚠️  First time setup: Run 'uv sync' to initialize"
               else
-                echo "⚠️  First time setup: Run 'uv sync' to initialize workspace"
+                echo "⚠️  First time setup: Run 'uv sync'"
               fi
+              echo ""
             fi
 
+            echo "🎯 Quick Start (3 steps):"
+            echo "  1. unzip-datasets              # Extract junction-sensofusion.zip"
+            echo "  2. convert-all-legacy-to-hdf5  # Convert .dat → .h5"
+            echo "  3. run-mvp-demo                # Launch fullscreen UI!"
             echo ""
-            echo "📦 Package Management:"
-            echo "  NEVER use pip - UV only!"
-            echo "  Add dependency: uv add --package <member> <package>"
-            echo "  Sync workspace: uv sync"
+            echo "📖 Docs: README.md + docs/ (numbered 01-09)"
             echo ""
-            echo "📊 Dataset Management:"
-            echo "  unzip-datasets              : Extract junction-sensofusion.zip"
-            echo "  download-datasets           : Download from Google Drive (~1.4 GB)"
+            echo "🔧 Main Commands:"
+            echo "  run-mvp-demo                   # Fullscreen UI with all detectors"
+            echo "  run-fan-rpm-demo <file>        # Fan RPM detector (CLI)"
+            echo "  run-drone-detector-demo <file> # Drone detector (CLI)"
+            echo "  run-evlib-tests                # Run loader parity tests"
             echo ""
-            echo "📦 Legacy Data Export (RECOMMENDED):"
-            echo "  convert-legacy-dat-to-hdf5  : Convert single legacy .dat to evlib HDF5"
-            echo "  convert-all-legacy-to-hdf5  : Convert ALL legacy .dat to evlib HDF5"
-            echo ""
-            echo "🧪 Experimental (IDS Camera Data):"
-            echo "  convert-all-datasets        : Convert .raw to _evt3.dat (IDS only, not legacy)"
-            echo "  convert-evt3-raw-to-dat     : Manual .raw → .dat (experimental)"
-            echo ""
-            echo "🚀 Running Commands (from repo root):"
-            echo "  uv run --package <member> <command>"
-            echo ""
-            echo "🧪 Testing:"
-            echo "  run-evlib-tests      : Compare evlib vs legacy loader"
-            echo ""
-            echo "🎯 Detector Demos (legacy loaders):"
-            echo "  run-fan-detector     : Fan RPM estimation with ellipse fitting"
-            echo "  run-drone-detector   : Drone propeller detection and RPM"
-            echo ""
-            echo "Demo Aliases:"
-            echo "  run-demo-fan         : Play fan dataset (legacy loader)"
-            echo "  run-demo-fan-ev3     : Play fan dataset (evlib on legacy HDF5 export)"
-            echo "  run-mvp-1            : MVP 1 - Event density"
-            echo "  run-mvp-2            : MVP 2 - Voxel FFT"
-            echo ""
-            echo "NOTE: run-demo-fan-ev3 uses legacy export (requires convert-legacy-dat-to-hdf5)"
-            echo ""
-            echo "📈 Experimental IDS Data Sandbox:"
-            echo "  run-evlib-raw-demo   : Load .raw with evlib (IDS camera, not legacy)"
-            echo "  run-evlib-raw-player : Real-time .raw playback (IDS camera, not legacy)"
+            echo "🎨 Data & Utils:"
+            echo "  unzip-datasets                 # Extract local zip file"
+            echo "  download-datasets              # DO NOT RUN - WE ALREADY DDOSSED SENSOFUSION SORRY"
+            echo "  convert-legacy-dat-to-hdf5 <file>  # Single file conversion"
+            echo "  convert-all-legacy-to-hdf5     # Batch convert all .dat files"
+            echo "  generate-thumbnails            # Create/update menu thumbnails"
             echo ""
 
             # Shell aliases for convenience
             alias download-datasets='uv run --package downloader download-datasets'
             alias run-evlib-tests='uv run --package evio-core pytest workspace/libs/evio-core/tests/test_evlib_comparison.py -v -s'
+            alias generate-thumbnails='uv run --package evio python scripts/generate_thumbnails.py'
             alias run-demo-fan='uv run --package evio python evio/scripts/play_dat.py evio/data/fan/fan_const_rpm.dat'
             alias run-demo-fan-ev3='uv run --package evio python evio/scripts/play_evlib.py evio/data/fan/fan_const_rpm_legacy.h5'
             alias run-mvp-1='uv run --package evio python evio/scripts/mvp_1_density.py evio/data/fan/fan_const_rpm.dat'
             alias run-mvp-2='uv run --package evio python evio/scripts/mvp_2_voxel.py evio/data/fan/fan_varying_rpm.dat'
             alias run-evlib-raw-demo='uv run --package evlib-examples evlib-raw-demo'
             alias run-evlib-raw-player='uv run --package evlib-examples evlib-raw-player'
+            alias run-mvp-demo='uv run --package evio python evio/scripts/mvp_launcher.py'
+            alias run-fan-rpm-demo='uv run fan-rpm-demo evio/data/fan/fan_const_rpm_legacy.h5'
+            alias run-drone-detector-demo='uv run drone-detector-demo evio/data/drone_idle/drone_idle_legacy.h5'
             alias run-fan-detector='uv run --package evio python evio/scripts/fan_detector_demo.py evio/data/fan/fan_const_rpm.dat'
             alias run-drone-detector='uv run --package evio python evio/scripts/drone_detector_demo.py evio/data/drone_idle/drone_idle.dat'
 

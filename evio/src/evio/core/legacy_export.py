@@ -68,12 +68,23 @@ def export_legacy_to_hdf5(recording: Any, out_path: Path) -> dict[str, int]:
     # Write to HDF5
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Chunking parameters for optimal lazy loading performance
+    # - 100K events/chunk = ~800 KB (timestamps) - within 10 KiB - 1 MiB sweet spot
+    # - Enables true lazy loading in evlib (load_events() reads only metadata)
+    # - Light compression (gzip level 1) for better I/O without CPU overhead
+    CHUNK_SIZE = 100_000
+
     with h5py.File(out_path, 'w') as f:
-        # Create datasets (evlib expects /events/t, /events/x, /events/y, /events/p)
-        f.create_dataset('events/t', data=timestamps, dtype='int64')
-        f.create_dataset('events/x', data=x, dtype='uint16')
-        f.create_dataset('events/y', data=y, dtype='uint16')
-        f.create_dataset('events/p', data=polarity, dtype='int8')
+        # Create chunked datasets (evlib expects /events/t, /events/x, /events/y, /events/p)
+        # Chunking + compression = fast lazy loading
+        f.create_dataset('events/t', data=timestamps, dtype='int64',
+                         chunks=(CHUNK_SIZE,), compression='gzip', compression_opts=1)
+        f.create_dataset('events/x', data=x, dtype='uint16',
+                         chunks=(CHUNK_SIZE,), compression='gzip', compression_opts=1)
+        f.create_dataset('events/y', data=y, dtype='uint16',
+                         chunks=(CHUNK_SIZE,), compression='gzip', compression_opts=1)
+        f.create_dataset('events/p', data=polarity, dtype='int8',
+                         chunks=(CHUNK_SIZE,), compression='gzip', compression_opts=1)
 
         # Write metadata at file level
         f.attrs['width'] = recording.width
