@@ -14,6 +14,16 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     print("Warning: scikit-learn not available, DBSCAN clustering disabled", flush=True)
 
+# ============================================================================
+# Color Palette: Detection Overlays
+# ============================================================================
+# All colors in BGR format (OpenCV convention)
+
+DETECTION_SUCCESS = (153, 255, 0)   # #00ff99 - green (BGR) for ellipses/RPM
+DETECTION_WARNING = (0, 136, 255)   # #ff8800 - orange (BGR) for warnings
+DETECTION_BOX = (255, 255, 0)       # #00ffff - cyan (BGR) for bounding boxes
+DETECTION_CLUSTER = (0, 255, 255)   # #ffff00 - yellow (BGR) for blade clusters
+
 
 # ============================================================================
 # Fan Detector
@@ -272,23 +282,23 @@ def render_fan_overlay(
     """
     frame = base_frame.copy()
 
-    # Draw ellipse (cyan)
+    # Draw ellipse (green)
     center = (detection.cx, detection.cy)
     axes = (int(detection.a), int(detection.b))
     angle_deg = np.rad2deg(detection.phi)
-    cv2.ellipse(frame, center, axes, angle_deg, 0, 360, (255, 255, 0), 2)  # Cyan in BGR
+    cv2.ellipse(frame, center, axes, angle_deg, 0, 360, DETECTION_SUCCESS, 2)  # Green
 
     # Draw center
-    cv2.circle(frame, center, 5, (255, 255, 0), -1)
+    cv2.circle(frame, center, 5, DETECTION_SUCCESS, -1)
 
     # Draw blade clusters (yellow circles)
     for xc, yc in detection.clusters:
-        cv2.circle(frame, (int(xc), int(yc)), 8, (0, 255, 255), 2)  # Yellow in BGR
+        cv2.circle(frame, (int(xc), int(yc)), 8, DETECTION_CLUSTER, 2)  # Yellow clusters
 
     # Draw RPM text (green)
     rpm_text = f"RPM: {detection.rpm:.0f}"
     cv2.putText(frame, rpm_text, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)  # Green
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, DETECTION_SUCCESS, 2, cv2.LINE_AA)  # Green
 
     return frame
 
@@ -420,9 +430,9 @@ def render_drone_overlay(
     """
     frame = base_frame.copy()
 
-    # Draw bounding boxes (red)
+    # Draw bounding boxes (cyan)
     for x, y, w, h in detection.boxes:
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), DETECTION_BOX, 2)  # Cyan boxes
 
     # Draw warning if present (orange)
     if detection.warning:
@@ -430,11 +440,11 @@ def render_drone_overlay(
 
         # Warning text at top
         cv2.putText(frame, "DRONE DETECTED", (w_frame // 2 - 150, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 136, 255), 2, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, DETECTION_WARNING, 2, cv2.LINE_AA)  # Orange warning
 
         # Count at bottom-right
         count_text = f"Propellers: {len(detection.boxes)}"
         cv2.putText(frame, count_text, (w_frame - 200, h_frame - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 136, 255), 2, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, DETECTION_WARNING, 2, cv2.LINE_AA)  # Orange
 
     return frame
