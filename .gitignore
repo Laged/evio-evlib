@@ -53,6 +53,9 @@ result-*
 *.h5
 evio/data/junction-sensofusion.zip
 
+# Thumbnail cache
+evio/data/.cache/
+
 # Compiled
 *.o
 *.pyc
