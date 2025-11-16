@@ -86,6 +86,74 @@ def extract_metadata(lazy_events: pl.LazyFrame) -> Tuple[int, int, int, int]:
     return width, height, t_min, t_max
 
 
+def render_polarity_frame(
+    x_coords: np.ndarray,
+    y_coords: np.ndarray,
+    polarities: np.ndarray,
+    width: int,
+    height: int,
+) -> np.ndarray:
+    """Render polarity events to BGR frame.
+
+    Args:
+        x_coords: Event x coordinates
+        y_coords: Event y coordinates
+        polarities: Event polarities (>0 = ON, <=0 = OFF)
+        width: Frame width
+        height: Frame height
+
+    Returns:
+        BGR frame (numpy array, uint8)
+    """
+    # Base gray, white for ON, black for OFF
+    frame = np.full((height, width, 3), (127, 127, 127), dtype=np.uint8)
+
+    if len(x_coords) > 0:
+        polarities_on = polarities > 0
+        # ON events = white
+        frame[y_coords[polarities_on], x_coords[polarities_on]] = (255, 255, 255)
+        # OFF events = black
+        frame[y_coords[~polarities_on], x_coords[~polarities_on]] = (0, 0, 0)
+
+    return frame
+
+
+def resize_with_letterbox(
+    frame: np.ndarray,
+    target_w: int,
+    target_h: int,
+) -> np.ndarray:
+    """Resize frame to target size with letterboxing (preserve aspect ratio).
+
+    Args:
+        frame: Input BGR frame
+        target_w: Target width
+        target_h: Target height
+
+    Returns:
+        Resized frame with letterboxing (black bars)
+    """
+    h, w = frame.shape[:2]
+
+    # Calculate scaling to fit within target
+    scale = min(target_w / w, target_h / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    # Resize frame
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    # Create letterboxed frame (black background)
+    letterboxed = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+
+    # Center resized frame
+    x_offset = (target_w - new_w) // 2
+    y_offset = (target_h - new_h) // 2
+    letterboxed[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+
+    return letterboxed
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
