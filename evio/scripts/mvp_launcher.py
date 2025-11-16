@@ -763,7 +763,7 @@ class MVPLauncher:
         h, w = frame.shape[:2]
 
         # Larger semi-transparent panel background
-        panel_w, panel_h = 350, 160
+        panel_w, panel_h = 350, 180
         panel_x, panel_y = w - panel_w - 10, h - panel_h - 10
 
         overlay = frame.copy()
@@ -772,7 +772,7 @@ class MVPLauncher:
                       HUD_PANEL_BG, -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-        # Text content - prominently show speed and window
+        # Text content - all text same size (0.7), FPS at bottom
         wall_time_s = time.perf_counter() - wall_start
         rec_time_s = (state.current_t - state.t_min) / 1e6
 
@@ -782,13 +782,13 @@ class MVPLauncher:
         else:
             window_display = f"{state.window_us/1000:.1f}ms"
 
-        # Lines with larger font for speed/window
+        # All text same size (0.7 scale, thickness 2) with FPS at bottom
         lines = [
-            ("FPS:", f"{fps:.1f}", 0.5, 1),
-            ("SPEED:", f"{state.speed:.2f}x", 0.7, 2),  # Larger, bold
-            ("WINDOW:", window_display, 0.7, 2),  # Larger, bold
-            ("Time:", f"{rec_time_s:.2f}s", 0.5, 1),
-            ("Dataset:", f"{state.dataset.category}", 0.5, 1),
+            ("SPEED:", f"{state.speed:.2f}x", 0.7, 2),
+            ("WINDOW:", window_display, 0.7, 2),
+            ("Time:", f"{rec_time_s:.2f}s", 0.7, 2),
+            ("Dataset:", f"{state.dataset.category}", 0.7, 2),
+            ("FPS:", f"{fps:.1f}", 0.7, 2),  # Moved to bottom
         ]
 
         y_offset = panel_y + 25
@@ -981,53 +981,51 @@ class MVPLauncher:
             state.overlay_flags["help"] = not state.overlay_flags["help"]
             print(f"Help: {'ON' if state.overlay_flags['help'] else 'OFF'}")
 
-        # Playback speed control (↑/↓ arrows) - 25% steps from 0.25x to 4.0x
+        # Playback speed control (↑/↓ arrows) - 25% steps from 0.25x to 100x
         elif key in (82, 0):  # Up arrow
-            state.speed = min(state.speed + 0.25, 4.0)
+            state.speed = min(state.speed + 0.25, 100.0)
             print(f"Playback speed: {state.speed:.2f}x")
         elif key in (84, 1):  # Down arrow
             state.speed = max(state.speed - 0.25, 0.25)
             print(f"Playback speed: {state.speed:.2f}x")
 
         # Event window size control (←/→ arrows)
-        # Variable increments: 10μs steps (0.01-0.1ms), 10μs steps (0.1-1ms), 0.5ms steps (1-3ms),
-        # 2ms steps (3-10ms), 5ms steps (10-100ms)
+        # Smooth 10-step transition: 10μs -> 1ms, then coarser steps up to 100ms
+        # 10 steps: 10μs, 20μs, 50μs, 100μs, 200μs, 500μs, 1ms, 3ms, 10ms, 100ms
         elif key in (83, 2):  # Right arrow - larger window
             window_us = state.window_us
-            if window_us < 100:  # 0.01-0.1ms: 10μs steps
-                window_us = min(window_us + 10, 100)
-            elif window_us < 1000:  # 0.1-1ms: 10μs steps
-                window_us = min(window_us + 10, 1000)
-            elif window_us < 3000:  # 1-3ms: 0.5ms steps
-                window_us = min(window_us + 500, 3000)
-            elif window_us < 10000:  # 3-10ms: 2ms steps
-                window_us = min(window_us + 2000, 10000)
-            else:  # 10-100ms: 5ms steps
-                window_us = min(window_us + 5000, 100000)
+            # Predefined smooth steps from 10μs to 100ms
+            steps = [10, 20, 50, 100, 200, 500, 1000, 3000, 10000, 100000]
+
+            # Find next larger step
+            for step in steps:
+                if window_us < step:
+                    window_us = step
+                    break
+
             state.window_us = window_us
             # Smart formatting: show μs for < 1ms, ms otherwise
             if window_us < 1000:
-                print(f"Event window: {window_us}μs ({window_us/1000:.3f}ms)")
+                print(f"Event window: {window_us}μs")
             else:
-                print(f"Event window: {window_us/1000:.2f}ms")
+                print(f"Event window: {window_us/1000:.1f}ms")
         elif key in (81, 3):  # Left arrow - smaller window
             window_us = state.window_us
-            if window_us > 10000:  # 10-100ms: 5ms steps
-                window_us = max(window_us - 5000, 10000)
-            elif window_us > 3000:  # 3-10ms: 2ms steps
-                window_us = max(window_us - 2000, 3000)
-            elif window_us > 1000:  # 1-3ms: 0.5ms steps
-                window_us = max(window_us - 500, 1000)
-            elif window_us > 100:  # 0.1-1ms: 10μs steps
-                window_us = max(window_us - 10, 100)
-            else:  # 0.01-0.1ms: 10μs steps
-                window_us = max(window_us - 10, 10)
+            # Predefined smooth steps from 100ms to 10μs
+            steps = [100000, 10000, 3000, 1000, 500, 200, 100, 50, 20, 10]
+
+            # Find next smaller step
+            for step in steps:
+                if window_us > step:
+                    window_us = step
+                    break
+
             state.window_us = window_us
             # Smart formatting: show μs for < 1ms, ms otherwise
             if window_us < 1000:
-                print(f"Event window: {window_us}μs ({window_us/1000:.3f}ms)")
+                print(f"Event window: {window_us}μs")
             else:
-                print(f"Event window: {window_us/1000:.2f}ms")
+                print(f"Event window: {window_us/1000:.1f}ms")
 
         # Advance time
         state.current_t += state.window_us
