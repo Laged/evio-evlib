@@ -67,7 +67,9 @@ The MVP launcher had severe performance issues causing slow "press Enter → see
 - ✅ 20-30% reduction in load time
 - ✅ Metadata extracted once at startup, reused indefinitely
 
-**Commit:** `2a9f23e` - perf(launcher): cache dataset metadata to skip re-extraction
+**Commits:**
+- `2a9f23e` - perf(launcher): cache dataset metadata to skip re-extraction
+- `a17fc5c` - fix(perf): make metadata extraction lazy (on first load)
 
 ---
 
@@ -75,6 +77,7 @@ The MVP launcher had severe performance issues causing slow "press Enter → see
 
 ### Before Optimization
 ```
+- Menu startup: Instant
 - Press Enter: 2-3 second delay
 - Playback: PerformanceWarning spam (30-60x/sec)
 - Every load: Full metadata aggregation query
@@ -83,9 +86,10 @@ The MVP launcher had severe performance issues causing slow "press Enter → see
 
 ### After Optimization
 ```
-- Press Enter: <0.5 second delay (4-6x faster)
+- Menu startup: Instant (metadata extracted lazily)
+- First Enter: 1-2 second delay (extracts + caches metadata)
+- Subsequent Enter: <0.5 second delay (uses cache)
 - Playback: Zero warnings, smooth rendering
-- Metadata: Cached at startup, reused on load
 - Schema: Resolved once per dataset load
 ```
 
@@ -164,12 +168,12 @@ if dataset.width is not None:
 - **Con:** None
 
 ### Option B (Metadata Caching)
-- **Pro:** Skips expensive aggregation on load
+- **Pro:** Skips expensive aggregation on subsequent loads
 - **Pro:** Enables future UI enhancements (show duration in menu)
-- **Con:** Slower startup (metadata extracted for all datasets)
+- **Pro:** Fast startup (metadata extracted lazily on first load)
 - **Con:** Small memory overhead per dataset (~40 bytes)
 
-**Decision:** Both optimizations implemented. The startup cost of Option B is paid once, but every subsequent load benefits.
+**Decision:** Both optimizations implemented. Metadata is extracted on first load and cached for subsequent loads (lazy evaluation pattern).
 
 ---
 
