@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
 """Test if evlib is using streaming for our HDF5 files."""
 
+import os
 import time
+from pathlib import Path
+
 import evlib
 import polars as pl
 import psutil
-import os
+
+
+def find_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "flake.nix").exists():
+            return parent
+    raise RuntimeError("Unable to locate repository root (missing flake.nix)")
+
+
+REPO_ROOT = find_repo_root()
 
 def monitor_memory():
     """Get current memory usage in MB."""
@@ -15,7 +27,7 @@ def monitor_memory():
 print("Testing evlib streaming behavior...")
 print()
 
-file_path = "evio/data/fan/fan_const_rpm_legacy.h5"
+file_path = REPO_ROOT / "evio" / "data" / "fan" / "fan_const_rpm_legacy.h5"
 
 # Monitor memory during load
 initial_mem = monitor_memory()
@@ -24,7 +36,7 @@ print()
 
 # Load with timing
 t_start = time.perf_counter()
-events = evlib.load_events(file_path)
+events = evlib.load_events(str(file_path))
 t_load = (time.perf_counter() - t_start) * 1000
 mem_after_load = monitor_memory()
 
@@ -52,7 +64,7 @@ print()
 # Check format detection
 try:
     import evlib.formats
-    format_info = evlib.formats.detect_format(file_path)
+    format_info = evlib.formats.detect_format(str(file_path))
     print(f"Detected format: {format_info}")
 except Exception as e:
     print(f"Could not detect format: {e}")

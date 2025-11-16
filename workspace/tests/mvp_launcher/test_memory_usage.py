@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 """Measure memory usage of caching LazyFrames."""
 
+import sys
 import time
+from pathlib import Path
+
 import evlib
 import polars as pl
-import gc
-import sys
+
+
+def find_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "flake.nix").exists():
+            return parent
+    raise RuntimeError("Unable to locate repository root (missing flake.nix)")
+
+
+REPO_ROOT = find_repo_root()
 
 def get_object_size(obj):
     """Estimate object size in MB."""
@@ -18,9 +29,9 @@ print()
 
 # Test all datasets
 datasets = [
-    ("fan_const_rpm_legacy.h5", "evio/data/fan/fan_const_rpm_legacy.h5"),
-    ("drone_idle_legacy.h5", "evio/data/drone_idle/drone_idle_legacy.h5"),
-    ("drone_moving_legacy.h5", "evio/data/drone_moving/drone_moving_legacy.h5"),
+    ("fan_const_rpm_legacy.h5", REPO_ROOT / "evio" / "data" / "fan" / "fan_const_rpm_legacy.h5"),
+    ("drone_idle_legacy.h5", REPO_ROOT / "evio" / "data" / "drone_idle" / "drone_idle_legacy.h5"),
+    ("drone_moving_legacy.h5", REPO_ROOT / "evio" / "data" / "drone_moving" / "drone_moving_legacy.h5"),
 ]
 
 print("Dataset Analysis:")
@@ -31,8 +42,7 @@ cache = {}
 
 for name, path in datasets:
     # Check if file exists
-    from pathlib import Path
-    if not Path(path).exists():
+    if not path.exists():
         print(f"⚠️  {name}: SKIPPED (file not found)")
         continue
 
@@ -40,7 +50,7 @@ for name, path in datasets:
 
     # Load LazyFrame
     t_start = time.perf_counter()
-    lazy_events = evlib.load_events(path)
+    lazy_events = evlib.load_events(str(path))
     t_load = (time.perf_counter() - t_start) * 1000
 
     # Get event count and schema

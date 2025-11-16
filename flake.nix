@@ -280,7 +280,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "║          Event Camera Detection Workbench                  ║"
             echo "║                                                            ║"
             echo "║  Real-time microsecond-scale event camera processing       ║"
-            echo "║  for drone detection                                       ║"
+            echo "║  pipeline for drone detection                              ║"
             echo "║  (it works on our machines - maybe yours)                  ║"
             echo "║                                                            ║"
             echo "╚════════════════════════════════════════════════════════════╝"

@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """Test default mode (no caching)."""
 
-import time
 import sys
+import time
 from pathlib import Path
 
-# Import MVPLauncher
-sys.path.insert(0, str(Path(__file__).parent / "evio/scripts"))
+
+def find_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "flake.nix").exists():
+            return parent
+    raise RuntimeError("Unable to locate repository root (missing flake.nix)")
+
+
+REPO_ROOT = find_repo_root()
+sys.path.insert(0, str(REPO_ROOT / "evio" / "scripts"))
+
 from mvp_launcher import MVPLauncher
 
 print("=" * 60)

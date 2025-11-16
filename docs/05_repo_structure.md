@@ -5,6 +5,7 @@
   - `detector-commons` (evlib loaders, Polars windowing, DBSCAN helpers, visuals).
   - `fan-rpm-demo`, `drone-detector-demo` (CLI evlib/Polars detectors).
   - `evlib-examples`, `downloader`, `evio-verifier` (supporting tools).
+- `workspace/tests/` – manual smoke/performance suites; `mvp_launcher/` now holds the caching/streaming QA scripts that previously lived at repo root.
 - `workspace/libs/evio-core/` – placeholder package (planned home for adapters/plugin API).
 - `docs/` – production-facing docs (numbered 01-09, architecture diagrams, status).
 - `dev-logs/` – AI development logs and working notes (migration history, debugging summaries).

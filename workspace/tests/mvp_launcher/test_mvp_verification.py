@@ -7,8 +7,16 @@ Tests functionality without GUI interaction.
 import sys
 from pathlib import Path
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent / "evio" / "scripts"))
+
+def find_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "flake.nix").exists():
+            return parent
+    raise RuntimeError("Unable to locate repository root (missing flake.nix)")
+
+
+REPO_ROOT = find_repo_root()
+sys.path.insert(0, str(REPO_ROOT / "evio" / "scripts"))
 
 # Test 1: Import check
 print("=" * 60)

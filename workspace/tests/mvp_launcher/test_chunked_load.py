@@ -2,18 +2,30 @@
 """Test evlib.load_events() performance with chunked HDF5."""
 
 import time
+from pathlib import Path
+
 import evlib
 import polars as pl
+
+
+def find_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "flake.nix").exists():
+            return parent
+    raise RuntimeError("Unable to locate repository root (missing flake.nix)")
+
+
+REPO_ROOT = find_repo_root()
 
 # Test newly converted chunked file
 print("Testing chunked HDF5 load performance...")
 print()
 
-file_path = "evio/data/fan/fan_const_rpm_legacy.h5"
+file_path = REPO_ROOT / "evio" / "data" / "fan" / "fan_const_rpm_legacy.h5"
 
 # Time the load
 t_start = time.perf_counter()
-lazy_events = evlib.load_events(file_path)
+lazy_events = evlib.load_events(str(file_path))
 t_load = (time.perf_counter() - t_start) * 1000  # ms
 
 print(f"⏱️  evlib.load_events(): {t_load:.1f}ms")
