@@ -101,6 +101,7 @@ class PlaybackState:
     """Playback session state."""
     dataset: Dataset
     lazy_events: pl.LazyFrame  # CRITICAL: Lazy, not collected!
+    schema: dict  # CACHED: Schema resolved once at load time
     width: int
     height: int
     t_min: int
@@ -364,6 +365,9 @@ class MVPLauncher:
             # CRITICAL: DON'T collect() here - keep lazy!
             lazy_events = evlib.load_events(str(dataset.path))
 
+            # PERFORMANCE: Resolve schema ONCE and cache it
+            schema = lazy_events.collect_schema()
+
             # Only collect metadata needed for initialization
             # Use SQL-style aggregation - this is more efficient than collecting everything
             metadata = lazy_events.select([
@@ -404,6 +408,7 @@ class MVPLauncher:
             return PlaybackState(
                 dataset=dataset,
                 lazy_events=lazy_events,  # Store lazy reference, NOT collected!
+                schema=schema,  # CACHED: Resolved once, reused every frame
                 width=width,
                 height=height,
                 t_min=t_min,
@@ -545,6 +550,7 @@ class MVPLauncher:
     def _get_event_window(
         self,
         lazy_events: pl.LazyFrame,
+        schema: dict,
         win_start_us: int,
         win_end_us: int,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -552,9 +558,14 @@ class MVPLauncher:
 
         CRITICAL: This uses lazy_events.filter().collect() to collect ONLY the window,
         NOT the full dataset. This prevents OOM on large files.
+
+        Args:
+            lazy_events: Lazy polars dataframe
+            schema: CACHED schema (resolved once at load time)
+            win_start_us: Window start time (microseconds)
+            win_end_us: Window end time (microseconds)
         """
-        # Peek at schema to determine time column type
-        schema = lazy_events.schema
+        # Use cached schema to determine time column type
         t_dtype = schema["t"]
 
         # Apply filter lazily, then collect ONLY the filtered window
@@ -728,7 +739,7 @@ class MVPLauncher:
 
         # Extract events for current window
         win_end = min(state.current_t + state.window_us, state.t_max)
-        window = self._get_event_window(state.lazy_events, state.current_t, win_end)
+        window = self._get_event_window(state.lazy_events, state.schema, state.current_t, win_end)
 
         # Render base polarity frame
         frame = self._render_polarity_frame(window, state.width, state.height)
