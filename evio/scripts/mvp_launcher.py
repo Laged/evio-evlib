@@ -134,6 +134,7 @@ class PlaybackState:
     speed: float = 1.0
     overlay_flags: Dict[str, bool] = None
     prev_fan_params: Optional[Tuple[int, int, float, float, float]] = None
+    smoothed_rpm: float = 0.0  # Exponentially smoothed RPM for stable display
 
     def __post_init__(self):
         if self.overlay_flags is None:

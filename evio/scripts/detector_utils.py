@@ -206,27 +206,37 @@ def estimate_rpm_from_clusters(
         window_duration_us: Window duration in microseconds
 
     Returns:
-        Estimated RPM (rough approximation)
+        Estimated RPM (normalized and smoothed)
     """
     if not clusters:
         return 0.0
 
-    # Assume each cluster is a blade
-    num_blades = len(clusters)
-    if num_blades == 0:
+    # The RPM should be constant regardless of window size
+    # Key insight: Smaller windows see fewer clusters, but represent shorter time
+    #
+    # Example: Fan at 1200 RPM = 20 rev/sec
+    # - 10ms window: might see 3 clusters → 3 blades in 10ms
+    # - 1ms window: might see 0-1 clusters → fewer blades in 1ms
+    # - 10μs window: might see 0 clusters → almost no blades in 10μs
+    #
+    # We need to scale UP the estimate for smaller windows
+
+    num_clusters = len(clusters)
+    if num_clusters == 0:
         return 0.0
 
-    # Simple estimate: if we see N blades in window, assume full rotation
-    # This is a rough approximation - real RPM tracking needs temporal tracking
+    # Assume 3 blades per rotation (typical fan)
+    # If we see N clusters in window_us, how many clusters per second?
     window_s = window_duration_us / 1e6
     if window_s <= 0:
         return 0.0
 
-    # Assume 3 blades per rotation (typical fan)
-    rotations_per_sec = num_blades / 3.0 / window_s
-    rpm = rotations_per_sec * 60.0
+    clusters_per_second = num_clusters / window_s
+    rotations_per_second = clusters_per_second / 3.0
+    rpm = rotations_per_second * 60.0
 
-    return max(0.0, min(rpm, 10000.0))  # Clamp to reasonable range
+    # Clamp to reasonable range and return
+    return max(0.0, min(rpm, 20000.0))  # Allow up to 20k RPM
 
 
 def detect_fan(
