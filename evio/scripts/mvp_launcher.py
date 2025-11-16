@@ -762,8 +762,8 @@ class MVPLauncher:
 
         h, w = frame.shape[:2]
 
-        # Semi-transparent panel background
-        panel_w, panel_h = 280, 100
+        # Larger semi-transparent panel background
+        panel_w, panel_h = 350, 160
         panel_x, panel_y = w - panel_w - 10, h - panel_h - 10
 
         overlay = frame.copy()
@@ -772,23 +772,33 @@ class MVPLauncher:
                       HUD_PANEL_BG, -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-        # Text content
+        # Text content - prominently show speed and window
         wall_time_s = time.perf_counter() - wall_start
         rec_time_s = (state.current_t - state.t_min) / 1e6
+        window_ms = state.window_us / 1000
 
+        # Lines with larger font for speed/window
         lines = [
-            f"FPS: {fps:.1f}",
-            f"Speed: {state.speed:.2f}x",
-            f"Recording: {rec_time_s:.2f}s",
-            f"Dataset: {state.dataset.category}",
+            ("FPS:", f"{fps:.1f}", 0.5, 1),
+            ("SPEED:", f"{state.speed:.2f}x", 0.7, 2),  # Larger, bold
+            ("WINDOW:", f"{window_ms:.1f}ms", 0.7, 2),  # Larger, bold
+            ("Time:", f"{rec_time_s:.2f}s", 0.5, 1),
+            ("Dataset:", f"{state.dataset.category}", 0.5, 1),
         ]
 
         y_offset = panel_y + 25
-        for line in lines:
-            cv2.putText(frame, line, (panel_x + 10, y_offset),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, HUD_TEXT,
-                        1, cv2.LINE_AA)
-            y_offset += 22
+        for label, value, font_scale, thickness in lines:
+            # Draw label
+            cv2.putText(frame, label, (panel_x + 10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, HUD_TEXT,
+                        thickness, cv2.LINE_AA)
+            # Draw value (right-aligned)
+            text_size = cv2.getTextSize(value, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
+            value_x = panel_x + panel_w - text_size[0] - 10
+            cv2.putText(frame, value, (value_x, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, HUD_TEXT,
+                        thickness, cv2.LINE_AA)
+            y_offset += int(30 * font_scale)
 
     def _draw_help_overlay(self, frame: np.ndarray) -> None:
         """Draw help overlay with keybindings."""
@@ -966,20 +976,35 @@ class MVPLauncher:
             state.overlay_flags["help"] = not state.overlay_flags["help"]
             print(f"Help: {'ON' if state.overlay_flags['help'] else 'OFF'}")
 
-        # Playback speed control (↑/↓ arrows)
-        elif key in (82, 0):  # Up arrow (multiple key codes for compatibility)
-            state.speed = min(state.speed * 1.5, 10.0)
+        # Playback speed control (↑/↓ arrows) - 25% steps from 0.25x to 4.0x
+        elif key in (82, 0):  # Up arrow
+            state.speed = min(state.speed + 0.25, 4.0)
             print(f"Playback speed: {state.speed:.2f}x")
         elif key in (84, 1):  # Down arrow
-            state.speed = max(state.speed / 1.5, 0.1)
+            state.speed = max(state.speed - 0.25, 0.25)
             print(f"Playback speed: {state.speed:.2f}x")
 
         # Event window size control (←/→ arrows)
+        # 0.5ms increments: 1-3ms, then 2ms increments: 3-10ms, then 5ms increments: 10-100ms
         elif key in (83, 2):  # Right arrow - larger window
-            state.window_us = min(state.window_us * 2, 100_000)  # Max 100ms
+            window_ms = state.window_us / 1000
+            if window_ms < 3:
+                window_ms = min(window_ms + 0.5, 3)
+            elif window_ms < 10:
+                window_ms = min(window_ms + 2, 10)
+            else:
+                window_ms = min(window_ms + 5, 100)
+            state.window_us = int(window_ms * 1000)
             print(f"Event window: {state.window_us / 1000:.1f}ms")
         elif key in (81, 3):  # Left arrow - smaller window
-            state.window_us = max(state.window_us // 2, 1_000)  # Min 1ms
+            window_ms = state.window_us / 1000
+            if window_ms > 10:
+                window_ms = max(window_ms - 5, 10)
+            elif window_ms > 3:
+                window_ms = max(window_ms - 2, 3)
+            else:
+                window_ms = max(window_ms - 0.5, 1)
+            state.window_us = int(window_ms * 1000)
             print(f"Event window: {state.window_us / 1000:.1f}ms")
 
         # Advance time
