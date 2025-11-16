@@ -29,7 +29,7 @@ convert-all-legacy-to-hdf5 # Convert .dat → .h5 for evlib
 - 🔴 Storage sink (ClickHouse/TSDB) for telemetry
 - 🟡 RVT integration (runs, retraining incomplete)
 
-## Docs (`docs/prod/`)
+## Docs (`docs/`)
 1. Problem statement
 2. Solution approach
 3. **Architecture** (mermaid diagram)

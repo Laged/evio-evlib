@@ -15,4 +15,4 @@
 
 ## Data prep
 - Legacy `.dat` → `_legacy.h5` export required for evlib demos.
-- See `docs/prod/07_runbook.md` for download/convert steps and example commands.
+- See `docs/07_runbook.md` for download/convert steps and example commands.

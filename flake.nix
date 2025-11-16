@@ -307,7 +307,7 @@ if inventory.get("fan", {}).get("dat", 0) > 0:
             echo "  2. convert-all-legacy-to-hdf5  # Convert .dat → .h5"
             echo "  3. run-mvp-demo                # Launch fullscreen UI!"
             echo ""
-            echo "📖 Docs: README.md + docs/prod/ (numbered 01-09)"
+            echo "📖 Docs: README.md + docs/ (numbered 01-09)"
             echo ""
             echo "🔧 Main Commands:"
             echo "  run-mvp-demo                   # Fullscreen UI with all detectors"

@@ -78,4 +78,4 @@ flowchart TB
 ### 🔴 Not Started (Red)
 - **Storage**: ClickHouse/TSDB telemetry sink (planned)
 
-See `docs/prod/06_status.md` and `docs/prod/07_runbook.md` for commands
+See `docs/06_status.md` and `docs/07_runbook.md` for commands

@@ -6,8 +6,8 @@
   - `fan-rpm-demo`, `drone-detector-demo` (CLI evlib/Polars detectors).
   - `evlib-examples`, `downloader`, `evio-verifier` (supporting tools).
 - `workspace/libs/evio-core/` – placeholder package (planned home for adapters/plugin API).
-- `docs/` – existing design/plan docs (to remain as legacy references).
-- `docs/prod/` – production-facing docs (this numbered set).
+- `docs/` – production-facing docs (numbered 01-09, architecture diagrams, status).
+- `dev-logs/` – AI development logs and working notes (migration history, debugging summaries).
 - `scripts/`, `flake.nix`, `pyproject.toml`, `uv.lock` – tooling and env.
 
 Status: Active code paths live in `evio/` (MVP UI) and `workspace/tools/` (evlib demos). Planned convergence: move shared logic into `libs/evio-core/` and a plugin-based `detector-ui`.
