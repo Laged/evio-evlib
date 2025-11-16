@@ -94,6 +94,12 @@ class Dataset:
     name: str
     category: str
     size_mb: float
+    # PERFORMANCE: Cache metadata to skip expensive aggregation on load
+    width: Optional[int] = None
+    height: Optional[int] = None
+    t_min: Optional[int] = None
+    t_max: Optional[int] = None
+    duration_sec: Optional[float] = None
 
 
 @dataclass
@@ -164,8 +170,46 @@ class MVPLauncher:
         print("=" * 60)
         print()
 
+    def _extract_metadata(self, h5_path: Path) -> tuple[int, int, int, int, float]:
+        """Extract metadata from HDF5 file (cached to avoid re-extraction on load).
+
+        Returns:
+            Tuple of (width, height, t_min, t_max, duration_sec)
+        """
+        lazy_events = evlib.load_events(str(h5_path))
+
+        # Quick metadata extraction (same as in _init_playback)
+        metadata = lazy_events.select([
+            pl.col("x").max().alias("max_x"),
+            pl.col("y").max().alias("max_y"),
+            pl.col("t").min().alias("t_min"),
+            pl.col("t").max().alias("t_max"),
+        ]).collect()
+
+        width = int(metadata["max_x"][0]) + 1
+        height = int(metadata["max_y"][0]) + 1
+
+        # Get time range (handle Duration vs Int64 vs timedelta)
+        import datetime
+        t_min_val = metadata["t_min"][0]
+        t_max_val = metadata["t_max"][0]
+
+        if isinstance(t_min_val, datetime.timedelta):
+            t_min = int(t_min_val.total_seconds() * 1e6)
+            t_max = int(t_max_val.total_seconds() * 1e6)
+        elif isinstance(t_min_val, pl.Duration):
+            t_min = int(t_min_val.total_microseconds())
+            t_max = int(t_max_val.total_microseconds())
+        else:
+            t_min = int(t_min_val)
+            t_max = int(t_max_val)
+
+        duration_sec = (t_max - t_min) / 1e6
+
+        return width, height, t_min, t_max, duration_sec
+
     def discover_datasets(self) -> List[Dataset]:
-        """Scan evio/data/ for *_legacy.h5 files."""
+        """Scan evio/data/ for *_legacy.h5 files and extract metadata."""
         data_dir = Path("evio/data")
         datasets = []
 
@@ -191,11 +235,19 @@ class MVPLauncher:
                 category = h5_file.parent.name
                 size_mb = h5_file.stat().st_size / (1024 * 1024)
 
+                # PERFORMANCE: Extract and cache metadata upfront
+                width, height, t_min, t_max, duration_sec = self._extract_metadata(h5_file)
+
                 datasets.append(Dataset(
                     path=h5_file,
                     name=name,
                     category=category,
                     size_mb=size_mb,
+                    width=width,
+                    height=height,
+                    t_min=t_min,
+                    t_max=t_max,
+                    duration_sec=duration_sec,
                 ))
             except Exception as e:
                 print(f"Warning: Failed to process {h5_file}: {e}", file=sys.stderr)
@@ -368,38 +420,43 @@ class MVPLauncher:
             # PERFORMANCE: Resolve schema ONCE and cache it
             schema = lazy_events.collect_schema()
 
-            # Only collect metadata needed for initialization
-            # Use SQL-style aggregation - this is more efficient than collecting everything
-            metadata = lazy_events.select([
-                pl.col("x").max().alias("max_x"),
-                pl.col("y").max().alias("max_y"),
-                pl.col("t").min().alias("t_min"),
-                pl.col("t").max().alias("t_max"),
-            ]).collect()
-
-            width = int(metadata["max_x"][0]) + 1
-            height = int(metadata["max_y"][0]) + 1
-
-            # Get time range (handle Duration vs Int64 vs timedelta)
-            import datetime
-            t_min_val = metadata["t_min"][0]
-            t_max_val = metadata["t_max"][0]
-
-            if isinstance(t_min_val, datetime.timedelta):
-                # Python timedelta object
-                t_min = int(t_min_val.total_seconds() * 1e6)
-                t_max = int(t_max_val.total_seconds() * 1e6)
-            elif isinstance(t_min_val, pl.Duration):
-                # Polars Duration
-                t_min = int(t_min_val.total_microseconds())
-                t_max = int(t_max_val.total_microseconds())
+            # PERFORMANCE: Use cached metadata if available (Option B optimization)
+            if dataset.width is not None:
+                # Metadata already cached from discovery
+                width = dataset.width
+                height = dataset.height
+                t_min = dataset.t_min
+                t_max = dataset.t_max
+                print(f"Using cached metadata: {width}x{height}, {dataset.duration_sec:.2f}s")
             else:
-                # Direct integer
-                t_min = int(t_min_val)
-                t_max = int(t_max_val)
+                # Fallback: Extract metadata (for backward compatibility)
+                metadata = lazy_events.select([
+                    pl.col("x").max().alias("max_x"),
+                    pl.col("y").max().alias("max_y"),
+                    pl.col("t").min().alias("t_min"),
+                    pl.col("t").max().alias("t_max"),
+                ]).collect()
 
-            print(f"Resolution: {width}x{height}, "
-                  f"Duration: {(t_max - t_min) / 1e6:.2f}s")
+                width = int(metadata["max_x"][0]) + 1
+                height = int(metadata["max_y"][0]) + 1
+
+                # Get time range (handle Duration vs Int64 vs timedelta)
+                import datetime
+                t_min_val = metadata["t_min"][0]
+                t_max_val = metadata["t_max"][0]
+
+                if isinstance(t_min_val, datetime.timedelta):
+                    t_min = int(t_min_val.total_seconds() * 1e6)
+                    t_max = int(t_max_val.total_seconds() * 1e6)
+                elif isinstance(t_min_val, pl.Duration):
+                    t_min = int(t_min_val.total_microseconds())
+                    t_max = int(t_max_val.total_microseconds())
+                else:
+                    t_min = int(t_min_val)
+                    t_max = int(t_max_val)
+
+                print(f"Resolution: {width}x{height}, "
+                      f"Duration: {(t_max - t_min) / 1e6:.2f}s")
 
             # Determine detector type
             detector_type = self._map_detector_type(dataset.category)
