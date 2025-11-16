@@ -138,9 +138,9 @@ class PlaybackState:
     def __post_init__(self):
         if self.overlay_flags is None:
             self.overlay_flags = {
-                "detector": True,
-                "hud": True,
-                "help": False,
+                "detector": False,  # OFF by default - press '1' to enable
+                "hud": False,       # OFF by default - press '2' to enable
+                "help": False,      # OFF by default - press 'h' to show
             }
 
 
