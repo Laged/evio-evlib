@@ -775,13 +775,18 @@ class MVPLauncher:
         # Text content - prominently show speed and window
         wall_time_s = time.perf_counter() - wall_start
         rec_time_s = (state.current_t - state.t_min) / 1e6
-        window_ms = state.window_us / 1000
+
+        # Smart window formatting: show μs for < 1ms, ms otherwise
+        if state.window_us < 1000:
+            window_display = f"{state.window_us}μs"
+        else:
+            window_display = f"{state.window_us/1000:.1f}ms"
 
         # Lines with larger font for speed/window
         lines = [
             ("FPS:", f"{fps:.1f}", 0.5, 1),
             ("SPEED:", f"{state.speed:.2f}x", 0.7, 2),  # Larger, bold
-            ("WINDOW:", f"{window_ms:.1f}ms", 0.7, 2),  # Larger, bold
+            ("WINDOW:", window_display, 0.7, 2),  # Larger, bold
             ("Time:", f"{rec_time_s:.2f}s", 0.5, 1),
             ("Dataset:", f"{state.dataset.category}", 0.5, 1),
         ]
@@ -985,27 +990,44 @@ class MVPLauncher:
             print(f"Playback speed: {state.speed:.2f}x")
 
         # Event window size control (←/→ arrows)
-        # 0.5ms increments: 1-3ms, then 2ms increments: 3-10ms, then 5ms increments: 10-100ms
+        # Variable increments: 10μs steps (0.01-0.1ms), 10μs steps (0.1-1ms), 0.5ms steps (1-3ms),
+        # 2ms steps (3-10ms), 5ms steps (10-100ms)
         elif key in (83, 2):  # Right arrow - larger window
-            window_ms = state.window_us / 1000
-            if window_ms < 3:
-                window_ms = min(window_ms + 0.5, 3)
-            elif window_ms < 10:
-                window_ms = min(window_ms + 2, 10)
+            window_us = state.window_us
+            if window_us < 100:  # 0.01-0.1ms: 10μs steps
+                window_us = min(window_us + 10, 100)
+            elif window_us < 1000:  # 0.1-1ms: 10μs steps
+                window_us = min(window_us + 10, 1000)
+            elif window_us < 3000:  # 1-3ms: 0.5ms steps
+                window_us = min(window_us + 500, 3000)
+            elif window_us < 10000:  # 3-10ms: 2ms steps
+                window_us = min(window_us + 2000, 10000)
+            else:  # 10-100ms: 5ms steps
+                window_us = min(window_us + 5000, 100000)
+            state.window_us = window_us
+            # Smart formatting: show μs for < 1ms, ms otherwise
+            if window_us < 1000:
+                print(f"Event window: {window_us}μs ({window_us/1000:.3f}ms)")
             else:
-                window_ms = min(window_ms + 5, 100)
-            state.window_us = int(window_ms * 1000)
-            print(f"Event window: {state.window_us / 1000:.1f}ms")
+                print(f"Event window: {window_us/1000:.2f}ms")
         elif key in (81, 3):  # Left arrow - smaller window
-            window_ms = state.window_us / 1000
-            if window_ms > 10:
-                window_ms = max(window_ms - 5, 10)
-            elif window_ms > 3:
-                window_ms = max(window_ms - 2, 3)
+            window_us = state.window_us
+            if window_us > 10000:  # 10-100ms: 5ms steps
+                window_us = max(window_us - 5000, 10000)
+            elif window_us > 3000:  # 3-10ms: 2ms steps
+                window_us = max(window_us - 2000, 3000)
+            elif window_us > 1000:  # 1-3ms: 0.5ms steps
+                window_us = max(window_us - 500, 1000)
+            elif window_us > 100:  # 0.1-1ms: 10μs steps
+                window_us = max(window_us - 10, 100)
+            else:  # 0.01-0.1ms: 10μs steps
+                window_us = max(window_us - 10, 10)
+            state.window_us = window_us
+            # Smart formatting: show μs for < 1ms, ms otherwise
+            if window_us < 1000:
+                print(f"Event window: {window_us}μs ({window_us/1000:.3f}ms)")
             else:
-                window_ms = max(window_ms - 0.5, 1)
-            state.window_us = int(window_ms * 1000)
-            print(f"Event window: {state.window_us / 1000:.1f}ms")
+                print(f"Event window: {window_us/1000:.2f}ms")
 
         # Advance time
         state.current_t += state.window_us
