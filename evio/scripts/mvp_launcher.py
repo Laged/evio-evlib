@@ -794,6 +794,10 @@ class MVPLauncher:
             "1 - Toggle detector overlay",
             "2 - Toggle HUD",
             "h - Toggle this help",
+            "",
+            "Up/Down - Increase/Decrease speed",
+            "Left/Right - Smaller/Larger event window",
+            "",
             "ESC - Return to menu",
             "q - Quit application",
         ]
@@ -948,6 +952,22 @@ class MVPLauncher:
         elif key == ord('h') or key == ord('H'):
             state.overlay_flags["help"] = not state.overlay_flags["help"]
             print(f"Help: {'ON' if state.overlay_flags['help'] else 'OFF'}")
+
+        # Playback speed control (↑/↓ arrows)
+        elif key in (82, 0):  # Up arrow (multiple key codes for compatibility)
+            state.speed = min(state.speed * 1.5, 10.0)
+            print(f"Playback speed: {state.speed:.2f}x")
+        elif key in (84, 1):  # Down arrow
+            state.speed = max(state.speed / 1.5, 0.1)
+            print(f"Playback speed: {state.speed:.2f}x")
+
+        # Event window size control (←/→ arrows)
+        elif key in (83, 2):  # Right arrow - larger window
+            state.window_us = min(state.window_us * 2, 100_000)  # Max 100ms
+            print(f"Event window: {state.window_us / 1000:.1f}ms")
+        elif key in (81, 3):  # Left arrow - smaller window
+            state.window_us = max(state.window_us // 2, 1_000)  # Min 1ms
+            print(f"Event window: {state.window_us / 1000:.1f}ms")
 
         # Advance time
         state.current_t += state.window_us
