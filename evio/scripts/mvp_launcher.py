@@ -204,6 +204,146 @@ class MVPLauncher:
         datasets.sort(key=lambda d: (d.category, d.name))
         return datasets
 
+    def _load_thumbnail(self, dataset: Dataset) -> np.ndarray | None:
+        """Load cached thumbnail for dataset.
+
+        Args:
+            dataset: Dataset metadata
+
+        Returns:
+            BGR thumbnail image (300x150), or None if not found
+        """
+        # Thumbnail path: evio/data/.cache/thumbnails/<stem>.png
+        # Remove "_legacy" suffix from dataset filename
+        thumbnail_name = dataset.path.stem.replace("_legacy", "") + ".png"
+        thumbnail_path = Path("evio/data/.cache/thumbnails") / thumbnail_name
+
+        if not thumbnail_path.exists():
+            return None
+
+        try:
+            thumbnail = cv2.imread(str(thumbnail_path))
+            if thumbnail is None:
+                return None
+
+            # Verify size (should be 300x150)
+            if thumbnail.shape[:2] != (150, 300):
+                print(f"Warning: Invalid thumbnail size for {dataset.name}: {thumbnail.shape}", file=sys.stderr)
+                return None
+
+            return thumbnail
+        except Exception as e:
+            print(f"Warning: Failed to load thumbnail for {dataset.name}: {e}", file=sys.stderr)
+            return None
+
+    def _render_thumbnail_tile(
+        self,
+        frame: np.ndarray,
+        x: int,
+        y: int,
+        tile_width: int,
+        tile_height: int,
+        thumbnail: np.ndarray,
+        dataset_name: str,
+        is_selected: bool,
+    ) -> None:
+        """Render thumbnail tile with text overlay.
+
+        Args:
+            frame: Frame to draw on
+            x, y: Top-left corner of tile
+            tile_width, tile_height: Tile dimensions (300x150)
+            thumbnail: BGR thumbnail image (300x150)
+            dataset_name: Dataset name for text overlay
+            is_selected: Whether tile is selected
+        """
+        # Draw thumbnail as background
+        frame[y:y+tile_height, x:x+tile_width] = thumbnail
+
+        # Draw selection border if selected
+        if is_selected:
+            cv2.rectangle(frame, (x, y), (x + tile_width, y + tile_height),
+                          TILE_SELECTED, 3)
+
+        # Draw semi-transparent black band at bottom
+        band_height = 40
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (x, y + tile_height - band_height),
+                      (x + tile_width, y + tile_height), OVERLAY_BAND, -1)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # Draw dataset name (centered, white)
+        text_size = cv2.getTextSize(dataset_name, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+        text_x = x + (tile_width - text_size[0]) // 2
+        text_y = y + tile_height - 15  # 15px from bottom
+        cv2.putText(frame, dataset_name, (text_x, text_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, TEXT_PRIMARY, 2, cv2.LINE_AA)
+
+    def _render_fallback_tile(
+        self,
+        frame: np.ndarray,
+        x: int,
+        y: int,
+        tile_width: int,
+        tile_height: int,
+        dataset_name: str,
+        category: str,
+        size_mb: float,
+        is_selected: bool,
+    ) -> None:
+        """Render fallback tile (no thumbnail available).
+
+        Args:
+            frame: Frame to draw on
+            x, y: Top-left corner of tile
+            tile_width, tile_height: Tile dimensions (300x150)
+            dataset_name: Dataset name
+            category: Dataset category
+            size_mb: Dataset size in MB
+            is_selected: Whether tile is selected
+        """
+        # Tile background color
+        if is_selected:
+            tile_color = TILE_SELECTED
+            border_thickness = 3
+        else:
+            tile_color = TILE_COLOR
+            border_thickness = 1
+
+        # Draw tile rectangle
+        cv2.rectangle(frame, (x, y), (x + tile_width, y + tile_height),
+                      tile_color, border_thickness)
+
+        # Fill if not selected
+        if not is_selected:
+            cv2.rectangle(frame, (x + border_thickness, y + border_thickness),
+                          (x + tile_width - border_thickness, y + tile_height - border_thickness),
+                          tile_color, -1)
+
+        # Draw text (centered)
+        # Line 1: Dataset name
+        name_size = cv2.getTextSize(dataset_name, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        name_x = x + (tile_width - name_size[0]) // 2
+        name_y = y + 50
+        cv2.putText(frame, dataset_name, (name_x, name_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, TEXT_PRIMARY, 2, cv2.LINE_AA)
+
+        # Line 2: "No preview"
+        no_preview = "No preview"
+        no_preview_size = cv2.getTextSize(no_preview, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+        no_preview_x = x + (tile_width - no_preview_size[0]) // 2
+        no_preview_y = y + 90
+        cv2.putText(frame, no_preview, (no_preview_x, no_preview_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_SECONDARY, 1, cv2.LINE_AA)
+
+        # Line 3: Category + size
+        meta_text = f"{category} | {size_mb:.1f} MB"
+        meta_size = cv2.getTextSize(meta_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+        meta_x = x + (tile_width - meta_size[0]) // 2
+        meta_y = y + 120
+        cv2.putText(frame, meta_text, (meta_x, meta_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_SECONDARY, 1, cv2.LINE_AA)
+
     def _map_detector_type(self, category: str) -> str:
         """Map dataset category to detector type."""
         if not DETECTORS_AVAILABLE:
@@ -325,44 +465,23 @@ class MVPLauncher:
             x = col * tile_width + (col + 1) * margin
             y = row * tile_height + (row + 1) * margin
 
-            # Tile background color
             is_selected = (i == self.selected_index)
-            if is_selected:
-                tile_color = TILE_SELECTED  # Pink Y2K accent
-                border_thickness = 3
+
+            # Try to load thumbnail
+            thumbnail = self._load_thumbnail(dataset)
+
+            if thumbnail is not None:
+                # Render thumbnail tile with minimal overlay
+                self._render_thumbnail_tile(
+                    frame, x, y, tile_width, tile_height,
+                    thumbnail, dataset.name, is_selected
+                )
             else:
-                tile_color = TILE_COLOR  # Medium gray
-                border_thickness = 1
-
-            # Draw tile rectangle
-            cv2.rectangle(frame, (x, y), (x + tile_width, y + tile_height),
-                          tile_color, border_thickness)
-
-            # Fill if not selected
-            if not is_selected:
-                cv2.rectangle(frame, (x + border_thickness, y + border_thickness),
-                              (x + tile_width - border_thickness, y + tile_height - border_thickness),
-                              tile_color, -1)
-
-            # Draw text (centered)
-            # Line 1: Dataset name (white, larger)
-            text_color = TEXT_PRIMARY
-            meta_color = TEXT_SECONDARY
-
-            name_text = dataset.name
-            name_size = cv2.getTextSize(name_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
-            name_x = x + (tile_width - name_size[0]) // 2
-            name_y = y + 50
-            cv2.putText(frame, name_text, (name_x, name_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2, cv2.LINE_AA)
-
-            # Line 2: Category + size
-            meta_text = f"{dataset.category} | {dataset.size_mb:.1f} MB"
-            meta_size = cv2.getTextSize(meta_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
-            meta_x = x + (tile_width - meta_size[0]) // 2
-            meta_y = y + 90
-            cv2.putText(frame, meta_text, (meta_x, meta_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, meta_color, 1, cv2.LINE_AA)
+                # Render fallback tile
+                self._render_fallback_tile(
+                    frame, x, y, tile_width, tile_height,
+                    dataset.name, dataset.category, dataset.size_mb, is_selected
+                )
 
         # Draw status bar at bottom
         status_y = frame_height - 30
