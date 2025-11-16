@@ -1,37 +1,41 @@
-# evio-evlib – Event-Camera Detection Workbench
+# evio-evlib – Event Camera Detection Workbench
 
-Reproducible, Nix-powered event-camera toolkit for fan RPM and drone propeller detection. Uses evlib + Polars for fast windowing and OpenCV UI; ships a menu-driven MVP (`run-mvp-demo`) plus evlib demos and tests via flake aliases.
+**Nix-powered toolkit for fan RPM and drone detection using event cameras.**
 
-## Quickstart (dev or demo)
+Fast windowing with evlib + Polars, fullscreen MVP UI with pink Y2K branding, reproducible environment.
+
+## Quick Start
 ```bash
-git clone <repo-url> evio-evlib
-cd evio-evlib
-nix develop --command unzip-datasets        # or download-datasets if not present locally
-nix develop --command run-mvp-demo          # Menu UI + detectors/datasets
-nix develop --command run-fan-rpm-demo      # CLI fan RPM (evlib/Polars)
-nix develop --command run-drone-detector-demo
+nix develop
+run-mvp-demo  # Fullscreen UI with fan/drone detectors
 ```
-Data: legacy `.dat` exports to `_legacy.h5` for evlib; see `docs/prod/07_runbook.md` for download/convert steps.
 
-## What’s inside (runnable today)
-- `run-mvp-demo`: menu-driven OpenCV UI (`evio/scripts/mvp_launcher.py`) wrapping detectors/datasets.
-- `run-fan-rpm-demo`, `run-drone-detector-demo`: evlib/Polars demos (ellipse + DBSCAN pipelines) on HDF5 exports.
-- Legacy players (`run-demo-fan`, `run-demo-fan-ev3`, MVP1/2) for reference.
-- Tests: `run-evlib-tests` (evlib vs legacy loader parity sanity check).
+## What Works
+- 🟢 **Detectors**: Fan RPM (ellipse + DBSCAN), Drone propellers (multi-ellipse)
+- 🟢 **MVP UI**: Fullscreen launcher, 0.25x-100x playback, 10μs-100ms windows
+- 🟢 **Performance**: Lazy loading, HDF5 chunking, frame skipping for 6000+ FPS
+- 🟢 **Visual**: 870x435 thumbnails, Sensofusion gray + Y2K pink palette
 
-## Roadmap (truth-in-progress)
-- Planned: stream adapter (Metavision), plugin API + `detector-ui`, shared `evio-core`, storage sink (ClickHouse/TSDB) for bbox/RPM telemetry.
-- Current gaps: no live camera path yet; MVP UI still tied to legacy script paths; storage not implemented.
+## Commands
+```bash
+run-mvp-demo               # Menu UI with all detectors/datasets
+run-fan-rpm-demo <file>    # CLI fan RPM (evlib/Polars)
+run-drone-detector-demo <file>
+convert-all-legacy-to-hdf5 # Convert .dat → .h5 for evlib
+```
 
-## Docs (slide-friendly, numbered)
-- Problem & scope: `docs/prod/01_problem_statement.md`
-- Solution overview: `docs/prod/02_solution_approach.md`
-- Architecture (with mermaid): `docs/prod/03_architecture.md`
-- Tech stack & commands: `docs/prod/04_tech_stack.md`
-- Repo layout: `docs/prod/05_repo_structure.md`
-- Status (DONE/TODO): `docs/prod/06_status.md`
-- Runbook (data, demos, tests): `docs/prod/07_runbook.md`
-- Data conversion (formats, why HDF5, how to convert): `docs/prod/08_data_conversion.md`
-- Detectors (fan/drone pipelines): `docs/prod/09_drone_detection.md`
+## Roadmap
+- 🔴 Stream adapter (Metavision SDK) for live cameras
+- 🔴 Storage sink (ClickHouse/TSDB) for telemetry
+- 🟡 RVT integration (runs, retraining incomplete)
 
-Dev history/legacy plans remain in existing `docs/` files; production-facing docs live under `docs/prod/`.
+## Docs (`docs/prod/`)
+1. Problem statement
+2. Solution approach
+3. **Architecture** (mermaid diagram)
+4. Tech stack & commands
+5. Repo structure
+6. **Status** (green/yellow/red)
+7. **Runbook** (data prep, demos)
+8. Data conversion
+9. Detector pipelines

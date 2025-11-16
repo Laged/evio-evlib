@@ -336,11 +336,8 @@ class MVPLauncher:
             if thumbnail is None:
                 return None
 
-            # Verify size (should be 300x150)
-            if thumbnail.shape[:2] != (150, 300):
-                print(f"Warning: Invalid thumbnail size for {dataset.name}: {thumbnail.shape}", file=sys.stderr)
-                return None
-
+            # Thumbnail will be resized dynamically in _render_thumbnail_tile()
+            # No size validation needed - supports any resolution
             return thumbnail
         except Exception as e:
             print(f"Warning: Failed to load thumbnail for {dataset.name}: {e}", file=sys.stderr)
@@ -362,13 +359,17 @@ class MVPLauncher:
         Args:
             frame: Frame to draw on
             x, y: Top-left corner of tile
-            tile_width, tile_height: Tile dimensions (300x150)
-            thumbnail: BGR thumbnail image (300x150)
+            tile_width, tile_height: Tile dimensions
+            thumbnail: BGR thumbnail image (will be resized to fit)
             dataset_name: Dataset name for text overlay
             is_selected: Whether tile is selected
         """
+        # Resize thumbnail to match tile dimensions
+        thumbnail_resized = cv2.resize(thumbnail, (tile_width, tile_height),
+                                       interpolation=cv2.INTER_LINEAR)
+
         # Draw thumbnail as background
-        frame[y:y+tile_height, x:x+tile_width] = thumbnail
+        frame[y:y+tile_height, x:x+tile_width] = thumbnail_resized
 
         # Draw selection border if selected
         if is_selected:
@@ -563,6 +564,7 @@ class MVPLauncher:
     def run(self) -> None:
         """Main application loop."""
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty(self.window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
         try:
             while True:
@@ -576,27 +578,38 @@ class MVPLauncher:
             cv2.destroyAllWindows()
 
     def _render_menu(self) -> np.ndarray:
-        """Render menu grid with text tiles."""
+        """Render menu grid with text tiles.
+
+        Renders at 1920x1080 base resolution.
+        OpenCV WINDOW_FULLSCREEN automatically scales to fit screen.
+        """
+        # Render at high resolution - OpenCV will scale to fit fullscreen
+        # Use 1920x1080 as base resolution for crisp scaling
+        frame_width = 1920
+        frame_height = 1080
+
         if not self.datasets:
             # No datasets - show message
-            frame = np.full((480, 640, 3), BG_COLOR, dtype=np.uint8)
+            frame = np.full((frame_height, frame_width, 3), BG_COLOR, dtype=np.uint8)
             msg1 = "No datasets found"
             msg2 = "Run: convert-all-legacy-to-hdf5"
-            cv2.putText(frame, msg1, (150, 200), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, TEXT_PRIMARY, 2, cv2.LINE_AA)
-            cv2.putText(frame, msg2, (100, 250), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6, TEXT_SECONDARY, 1, cv2.LINE_AA)
+            cv2.putText(frame, msg1, (frame_width // 2 - 200, frame_height // 2 - 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, TEXT_PRIMARY, 2, cv2.LINE_AA)
+            cv2.putText(frame, msg2, (frame_width // 2 - 250, frame_height // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, TEXT_SECONDARY, 1, cv2.LINE_AA)
             return frame
 
-        # Grid parameters
-        tile_width, tile_height = 300, 150
-        margin = 20
+        # Grid parameters - calculate to fit 1920x1080
         cols = 2
         rows = (len(self.datasets) + cols - 1) // cols
 
-        # Calculate frame size
-        frame_width = cols * tile_width + (cols + 1) * margin
-        frame_height = rows * tile_height + (rows + 1) * margin + 60  # +60 for status bar
+        # Calculate tile size to fit screen with margins
+        margin = 60  # Larger margins for better layout
+        available_width = frame_width - (cols + 1) * margin
+        available_height = frame_height - (rows + 1) * margin - 60  # -60 for status bar
+
+        tile_width = available_width // cols
+        tile_height = min(available_height // rows, tile_width // 2)  # Keep aspect ratio ~2:1
 
         # Dark gray background
         frame = np.full((frame_height, frame_width, 3), BG_COLOR, dtype=np.uint8)
@@ -627,16 +640,8 @@ class MVPLauncher:
                     dataset.name, dataset.category, dataset.size_mb, is_selected
                 )
 
-        # Draw status bar at bottom
-        status_y = frame_height - 30
-        cv2.rectangle(frame, (0, status_y), (frame_width, frame_height),
-                      STATUS_BAR_BG, -1)
-
-        status_text = "↑/↓/j/k: Navigate | Enter/Space: Play | Q/ESC: Quit"
-        status_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
-        status_x = (frame_width - status_size[0]) // 2
-        cv2.putText(frame, status_text, (status_x, status_y + 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, STATUS_TEXT, 1, cv2.LINE_AA)
+        # Draw branding bar (use helper method for consistency)
+        self._draw_branding_bar(frame)
 
         return frame
 
@@ -760,6 +765,22 @@ class MVPLauncher:
             frame[y_coords[~polarities_on], x_coords[~polarities_on]] = (0, 0, 0)
 
         return frame
+
+    def _draw_branding_bar(self, frame: np.ndarray) -> None:
+        """Draw bottom branding bar with #weUseNixBtw."""
+        h, w = frame.shape[:2]
+
+        # Bottom bar background
+        bar_height = 30
+        bar_y = h - bar_height
+        cv2.rectangle(frame, (0, bar_y), (w, h), STATUS_BAR_BG, -1)
+
+        # Pink branding text (centered)
+        branding_text = "#weUseNixBtw"
+        branding_size = cv2.getTextSize(branding_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+        branding_x = (w - branding_size[0]) // 2
+        cv2.putText(frame, branding_text, (branding_x, bar_y + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, TILE_SELECTED, 2, cv2.LINE_AA)
 
     def _draw_hud(
         self,
@@ -963,6 +984,9 @@ class MVPLauncher:
         # Draw help overlay if enabled
         if state.overlay_flags.get("help", False):
             self._draw_help_overlay(frame)
+
+        # Draw branding bar (always visible)
+        self._draw_branding_bar(frame)
 
         # Frame skipping for high-speed playback
         # When enabled, only render every Nth frame to maintain ~60 FPS display

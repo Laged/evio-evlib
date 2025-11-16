@@ -16,10 +16,13 @@
 - Detector colors: Green/yellow (fan), cyan/orange (drone)
 - All manual tests passing
 
-**Phase 2: Performance (Not Yet Started)**
-- Lazy windowing improvements
-- Schema/metadata caching
-- FPS throttling and frame buffer optimization
+**Phase 2: Performance - ✅ COMPLETE**
+- Implemented: 2025-11-16
+- See: `PERFORMANCE_OPTIMIZATION_SUMMARY.md`
+- Lazy windowing: Schema/metadata caching, optional LazyFrame cache
+- HDF5 chunking: 3.7x compression, 2.5x faster loads
+- Frame skipping: Optional --skip-frames for 6000+ FPS processing
+- All optimizations verified and tested
 
 ---
 

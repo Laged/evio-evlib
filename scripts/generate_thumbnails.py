@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate thumbnail previews for event camera datasets.
 
-Scans evio/data/ for *_legacy.h5 files and generates 300x150 PNG thumbnails
+Scans evio/data/ for *_legacy.h5 files and generates 870x435 PNG thumbnails
 from the first 1 second of events. Thumbnails cached to evio/data/.cache/thumbnails/
 
 Usage:
@@ -211,8 +211,8 @@ def generate_thumbnail(
         # Render polarity frame
         frame = render_polarity_frame(x_coords, y_coords, polarities, width, height)
 
-        # Resize to 300x150 with letterboxing
-        thumbnail = resize_with_letterbox(frame, target_w=300, target_h=150)
+        # Resize to 870x435 with letterboxing (matches fullscreen tile size)
+        thumbnail = resize_with_letterbox(frame, target_w=870, target_h=435)
 
         # Save PNG
         cv2.imwrite(str(output_path), thumbnail)

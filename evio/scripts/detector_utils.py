@@ -20,7 +20,7 @@ except ImportError:
 # All colors in BGR format (OpenCV convention)
 
 DETECTION_SUCCESS = (153, 255, 0)   # #00ff99 - green (BGR) for ellipses/RPM
-DETECTION_WARNING = (0, 136, 255)   # #ff8800 - orange (BGR) for warnings
+DETECTION_WARNING = (204, 102, 255)   # #ff66cc - pink Y2K (BGR) for warnings
 DETECTION_BOX = (255, 255, 0)       # #00ffff - cyan (BGR) for bounding boxes
 DETECTION_CLUSTER = (0, 255, 255)   # #ffff00 - yellow (BGR) for blade clusters
 
@@ -452,9 +452,9 @@ def render_drone_overlay(
         cv2.putText(frame, "DRONE DETECTED", (w_frame // 2 - 150, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, DETECTION_WARNING, 2, cv2.LINE_AA)  # Orange warning
 
-        # Count at bottom-right
+        # Count at bottom-right (white, smaller, positioned above branding bar)
         count_text = f"Propellers: {len(detection.boxes)}"
-        cv2.putText(frame, count_text, (w_frame - 200, h_frame - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, DETECTION_WARNING, 2, cv2.LINE_AA)  # Orange
+        cv2.putText(frame, count_text, (w_frame - 200, h_frame - 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)  # White, smaller
 
     return frame

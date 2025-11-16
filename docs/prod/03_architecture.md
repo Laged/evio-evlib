@@ -1,40 +1,81 @@
 # 03 – Architecture (Current → Target)
 
 ```mermaid
-flowchart LR
-    subgraph Data
-        A[Legacy .dat (EVT3)] -->|export| B[Open .h5 (evlib-ready)]
+flowchart TB
+    subgraph "Data Sources"
+        A["<b>Legacy .dat<br/>Sensofusion</b>"]
+        B["EVT3 .raw<br/>IDS camera"]
     end
-    subgraph Ingest & Windowing
-        B --> C[evlib.load_events (lazy)]
-        C --> D[Polars window filters<br/>+ accumulation]
+
+    subgraph "Data Conversion"
+        A --> C["<b>convert-legacy-dat-to-hdf5</b>"]
+        C --> D["<b>HDF5 _legacy.h5</b>"]
     end
-    subgraph Detectors (today)
-        D --> E[Fan RPM demo<br/>(2-pass ellipse + DBSCAN + RPM fit)]
-        D --> F[Drone demo<br/>(multi-ellipse + per-propeller RPM)]
+
+    subgraph "Ingest & Windowing"
+        D --> E["<b>evlib + Polars<br/>lazy loading</b>"]
+        B --> E
     end
-    subgraph UI
-        E & F --> G[run-mvp-demo<br/>(menu-driven OpenCV UI)]
+
+    subgraph "Detection Pipelines"
+        E --> F["<b>Fan RPM<br/>2-pass ellipse + DBSCAN</b>"]
+        E --> G["<b>Drone propellers<br/>multi-ellipse bbox</b>"]
+        G --> G2["Drone zoom-in<br/>bbox crop"]
     end
-    subgraph Planned Core
-        D --> H[EventSource adapters<br/>(file + stream)]
-        H --> I[Detector plugin API<br/>(evio-core)]
-        I --> J[detector-ui (hot-swap)]
+
+    subgraph "Visualization (DONE)"
+        F --> H["<b>MVP Launcher<br/>run-mvp-demo</b>"]
+        G --> H
+        G2 --> H
+        F --> I["CLI Demos<br/>run-fan-rpm-demo"]
+        G --> J["CLI Demos<br/>run-drone-detector-demo"]
+        G2 --> J
+        E --> K["Legacy players<br/>run-demo-fan-ev3"]
     end
-    subgraph Outputs
-        G --> K[(Storage: ClickHouse/TSDB)<br/>(recommended; not built)]
+
+    subgraph "Testing"
+        D --> L["run-evlib-tests<br/>loader parity"]
     end
+
+    subgraph "Storage (TODO)"
+        H -.-> M["ClickHouse/TSDB<br/>telemetry sink"]
+    end
+
+    subgraph "Event-Based ML (PARTIAL)"
+        E --> N["RVT<br/>event-to-frame"]
+    end
+
+    %% Styling
+    classDef done fill:#90EE90,stroke:#228B22,stroke-width:2px,color:#000
+    classDef partial fill:#FFFFE0,stroke:#FFD700,stroke-width:2px,color:#000
+    classDef future fill:#FFB6C1,stroke:#DC143C,stroke-width:2px,color:#000,stroke-dasharray: 5 5
+
+    class A,C,D,E,F,G,H,I,J,K,L done
+    class B,G2,N partial
+    class M future
 ```
 
-## Current runnable pieces
-- `run-mvp-demo`: menu UI (`evio/scripts/mvp_launcher.py`) wrapping detectors/datasets; uses evlib-backed detector utilities.
-- `run-fan-rpm-demo`, `run-drone-detector-demo`: evlib/Polars CLI demos on `_legacy.h5` exports.
-- Legacy players (`run-demo-fan`, `run-demo-fan-ev3`, MVP1/2) for reference.
+## Components by Status
 
-## Planned build-out
-- Adapters: file (evlib) + stream (Metavision SDK) under a common `EventSource` API.
-- Plugin API: detector interface (`process(events, width, height)`), auto-discovered packages, shared overlays/utilities in `evio-core`.
-- UI: `detector-ui` hot-swappable detectors/data, same code for file/stream.
-- Storage: ClickHouse/TSDB sink for `{t, bbox/ellipse, rpm, detector_id, source}` + reduced event stats for audit/training (not implemented yet).
-- Data conversion: legacy `.dat` must be converted to `_legacy.h5` before evlib-based demos/UI; see `docs/prod/08_data_conversion.md`.
-- Detectors: fan/drone pipelines documented in `docs/prod/09_drone_detection.md`.
+### 🟢 Complete (Green)
+- **Data Sources**: Legacy `.dat` files from Sensofusion
+- **Data Conversion**: `convert-legacy-dat-to-hdf5` → `_legacy.h5`
+- **Ingest**: evlib + Polars lazy loading and windowing
+- **Detection**:
+  - Fan RPM (2-pass ellipse + DBSCAN + RPM fit)
+  - Drone propellers multi-ellipse bounding box detection
+- **Visualization**:
+  - MVP Launcher (`run-mvp-demo`) - fullscreen UI with all detectors
+  - CLI demos (`run-fan-rpm-demo`, `run-drone-detector-demo`)
+  - Legacy players (`run-demo-fan-ev3`)
+- **Testing**: `run-evlib-tests` (evlib vs legacy parity)
+
+### 🟡 Partial (Yellow)
+- **Data Sources**: EVT3 `.raw` (IDS camera - experimental, different from legacy)
+- **Detection**: Drone zoom-in feature (bbox crop - incomplete)
+- **Event-Based ML**: RVT event-to-frame (runs successfully, retraining failed)
+
+### 🔴 Not Started (Red)
+- **Storage**: ClickHouse/TSDB telemetry sink (planned)
+
+See `docs/prod/06_status.md` and `docs/prod/07_runbook.md` for commands
